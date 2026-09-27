@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -50,6 +48,9 @@ import com.necoarc.ityou.data.model.ContentBlock
 fun DetailScreen(
     articleId: String,
     articleUrl: String,
+    previewTitle: String = "",
+    previewAuthor: String = "",
+    previewPubTime: String = "",
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: DetailViewModel = viewModel()
@@ -57,7 +58,13 @@ fun DetailScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(articleId) {
-        viewModel.loadArticleDetail(articleId, articleUrl)
+        viewModel.loadArticleDetail(
+            articleId = articleId,
+            url = articleUrl,
+            previewTitle = previewTitle,
+            previewAuthor = previewAuthor,
+            previewPubTime = previewPubTime
+        )
     }
 
     Scaffold(
@@ -136,16 +143,18 @@ fun DetailScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary
                             )
-                            Text(
-                                text = "·",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                            Text(
-                                text = detail.publishTime,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.outline
-                            )
+                            if (detail.publishTime.isNotEmpty()) {
+                                Text(
+                                    text = "·",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    text = detail.publishTime,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
                         }
                     }
 

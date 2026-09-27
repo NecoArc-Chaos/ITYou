@@ -23,10 +23,16 @@ class DetailViewModel(
     private val _uiState = MutableStateFlow(DetailUiState(isLoading = true))
     val uiState: StateFlow<DetailUiState> = _uiState.asStateFlow()
 
-    fun loadArticleDetail(articleId: String, url: String) {
+    fun loadArticleDetail(
+        articleId: String,
+        url: String,
+        previewTitle: String = "",
+        previewAuthor: String = "",
+        previewPubTime: String = ""
+    ) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-            val result = repository.getArticleDetail(articleId, url)
+            val result = repository.getArticleDetail(articleId, url, previewTitle, previewAuthor, previewPubTime)
             result.onSuccess { detail ->
                 _uiState.update {
                     it.copy(

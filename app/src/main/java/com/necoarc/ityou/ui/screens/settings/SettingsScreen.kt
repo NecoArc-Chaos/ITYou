@@ -23,23 +23,22 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: SettingsViewModel = viewModel()
 ) {
-    var dynamicColorEnabled by remember { mutableStateOf(true) }
-    var highQualityImage by remember { mutableStateOf(true) }
+    val settings by viewModel.settings.collectAsState()
 
     Scaffold(
         topBar = {
@@ -108,8 +107,8 @@ fun SettingsScreen(
                             )
                         }
                         Switch(
-                            checked = dynamicColorEnabled,
-                            onCheckedChange = { dynamicColorEnabled = it }
+                            checked = settings.dynamicColorEnabled,
+                            onCheckedChange = { viewModel.setDynamicColor(it) }
                         )
                     }
 
@@ -128,14 +127,14 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "在 Wi-Fi 下优先加载超高清文章插图",
+                                text = "在文章中优先加载超高清原图",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.outline
                             )
                         }
                         Switch(
-                            checked = highQualityImage,
-                            onCheckedChange = { highQualityImage = it }
+                            checked = settings.highQualityImage,
+                            onCheckedChange = { viewModel.setHighQualityImage(it) }
                         )
                     }
                 }

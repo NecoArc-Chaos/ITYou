@@ -50,7 +50,7 @@ import com.necoarc.ityou.ui.components.ArticleCard
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    onArticleClick: (articleId: String, url: String) -> Unit,
+    onArticleClick: (articleId: String, url: String, title: String, author: String, pubTime: String) -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = viewModel()
@@ -132,7 +132,15 @@ fun HomeScreen(
                     item {
                         HeroArticleCard(
                             article = heroArticle,
-                            onClick = { onArticleClick(heroArticle.id, heroArticle.url) }
+                            onClick = {
+                                onArticleClick(
+                                    heroArticle.id,
+                                    heroArticle.url,
+                                    heroArticle.title,
+                                    heroArticle.author,
+                                    heroArticle.publishTime
+                                )
+                            }
                         )
                     }
                 }
@@ -145,8 +153,33 @@ fun HomeScreen(
                 items(streamArticles, key = { it.id }) { article ->
                     ArticleCard(
                         article = article,
-                        onClick = { onArticleClick(article.id, article.url) }
+                        onClick = {
+                            onArticleClick(
+                                article.id,
+                                article.url,
+                                article.title,
+                                article.author,
+                                article.publishTime
+                            )
+                        }
                     )
+                }
+
+                if (uiState.articles.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "暂无该分类下的文章",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
                 }
 
                 item {

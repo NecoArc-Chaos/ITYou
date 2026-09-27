@@ -19,11 +19,11 @@ class ArticleRepository(
 ) {
 
     /**
-     * 获取文章列表：优先尝试解析 IT 之家 RSS，网络异常时回退到精选文章列表
+     * 获取文章列表并按所选分类过滤
      */
     suspend fun getArticles(category: ArticleCategory = ArticleCategory.ALL): Result<List<Article>> =
         withContext(Dispatchers.IO) {
-            try {
+            val allArticles = try {
                 val request = Request.Builder()
                     .url("https://www.ithome.com/rss/")
                     .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) ITYou-App/1.0")
@@ -34,19 +34,37 @@ class ArticleRepository(
                     val xml = response.body?.string().orEmpty()
                     val parsed = HtmlParser.parseRss(xml)
                     if (parsed.isNotEmpty()) {
-                        return@withContext Result.success(parsed)
+                        parsed
+                    } else {
+                        getFallbackArticles()
                     }
+                } else {
+                    getFallbackArticles()
                 }
-                Result.success(getFallbackArticles())
-            } catch (e: Exception) {
-                Result.success(getFallbackArticles())
+            } catch (_: Exception) {
+                getFallbackArticles()
             }
+
+            // 根据分类筛选
+            val filtered = if (category == ArticleCategory.ALL) {
+                allArticles
+            } else {
+                allArticles.filter { it.category == category }
+            }
+
+            Result.success(filtered)
         }
 
     /**
      * 获取文章详情
      */
-    suspend fun getArticleDetail(articleId: String, url: String): Result<ArticleDetail> =
+    suspend fun getArticleDetail(
+        articleId: String,
+        url: String,
+        previewTitle: String = "",
+        previewAuthor: String = "",
+        previewPubTime: String = ""
+    ): Result<ArticleDetail> =
         withContext(Dispatchers.IO) {
             try {
                 if (url.isNotEmpty()) {
@@ -64,9 +82,9 @@ class ArticleRepository(
                         }
                     }
                 }
-                Result.success(getFallbackDetail(articleId))
-            } catch (e: Exception) {
-                Result.success(getFallbackDetail(articleId))
+                Result.success(getFallbackDetail(articleId, previewTitle, previewAuthor, previewPubTime))
+            } catch (_: Exception) {
+                Result.success(getFallbackDetail(articleId, previewTitle, previewAuthor, previewPubTime))
             }
         }
 
@@ -111,31 +129,74 @@ class ArticleRepository(
                 publishTime = "2小时前",
                 category = ArticleCategory.SMARTPHONE,
                 commentCount = 205
+            ),
+            Article(
+                id = "800105",
+                title = "小米汽车 SU7 Ultra 量产版正式下线：纽北赛道圈速实测即将揭晓",
+                summary = "小米汽车官方今日宣布，定位巅峰性能科技轿车的 SU7 Ultra 正式迎来首批量产车下线，三电机系统最大马力超 1500 匹。",
+                coverImageUrl = "https://picsum.photos/seed/su7ultra/600/400",
+                author = "IT之家 (小智)",
+                publishTime = "3小时前",
+                category = ArticleCategory.AUTOMOTIVE,
+                commentCount = 621
+            ),
+            Article(
+                id = "800106",
+                title = "《黑神话：悟空》全新 DLC 预告曝光：新地图新妖王，计划明春上线",
+                summary = "游戏科学在最新开发者访谈中首次披露了大型内容扩展包的进展，并展示了多段令人惊叹的全新实机场景。",
+                coverImageUrl = "https://picsum.photos/seed/wukong/600/400",
+                author = "IT之家 (暴风)",
+                publishTime = "4小时前",
+                category = ArticleCategory.GAME,
+                commentCount = 430
             )
         )
     }
 
-    private fun getFallbackDetail(articleId: String): ArticleDetail {
+    private fun getFallbackDetail(
+        articleId: String,
+        previewTitle: String,
+        previewAuthor: String,
+        previewPubTime: String
+    ): ArticleDetail {
+        val article = getFallbackArticles().find { it.id == articleId }
+        val title = when {
+            previewTitle.isNotEmpty() -> previewTitle
+            article != null -> article.title
+            else -> "文章资讯详情"
+        }
+        val author = when {
+            previewAuthor.isNotEmpty() -> previewAuthor
+            article != null -> article.author
+            else -> "IT之家"
+        }
+        val pubTime = when {
+            previewPubTime.isNotEmpty() -> previewPubTime
+            article != null -> article.publishTime
+            else -> "刚刚"
+        }
+        val summary = article?.summary ?: "IT之家科技快讯报道，关注最新行业前沿资讯与数码产品发布动向。"
+
         return ArticleDetail(
             id = articleId,
-            title = "谷歌正式推送 Android 16 预览版：Material 3 Expressive 带来大圆角与更灵动的动效体验",
-            author = "IT之家 (远洋)",
-            publishTime = "2026-09-27 11:30",
+            title = title,
+            author = author,
+            publishTime = pubTime,
             source = "IT之家",
             contentBlocks = listOf(
-                ContentBlock.Paragraph("IT之家 9 月 27 日消息，谷歌今天面向开发者推出了新一代移动操作系统 Android 16 的首个预览版本。"),
-                ContentBlock.Heading("Material 3 Expressive 全面落地", level = 2),
-                ContentBlock.Paragraph("在本次更新中，视觉层面最显著的改变就是 Material 3 Expressive（表现力设计语言）的全面集成。"),
-                ContentBlock.BlockQuote("Expressive 设计语言让界面从克制走向充满生命力，通过更自然的弹性动效、更大的几何圆角，打造更愉悦的用户体验。"),
+                ContentBlock.Paragraph(summary),
+                ContentBlock.Heading("核心亮点与背景速览", level = 2),
+                ContentBlock.Paragraph("根据行业内最新动向与官方权威披露，本项科技进展不仅在性能和易用性上实现了跨越式升级，也为后续的技术生态演进奠定了坚实基础。"),
+                ContentBlock.BlockQuote("技术创新源于对极致用户体验的不懈追求，每一次架构革新都是向未来迈出的重要一步。"),
                 ContentBlock.Image(
-                    url = "https://picsum.photos/seed/android16_inner/800/500",
-                    caption = "全新 Expressive 控件与大圆角交互卡片"
+                    url = article?.coverImageUrl ?: "https://picsum.photos/seed/$articleId/800/500",
+                    caption = "现场实拍与规格参数细节展示"
                 ),
-                ContentBlock.Heading("核心底层与多核调度优化", level = 2),
-                ContentBlock.Paragraph("除 UI 表现力升级外，Android 16 进一步重构了 ART 运行时的垃圾回收机制，使后台内存占用降低约 18%，应用冷启动速度提高 20% 以上。")
+                ContentBlock.Heading("行业评价与后续展望", level = 2),
+                ContentBlock.Paragraph("业内分析人士指出，随着供应链效率与软硬件协同调优能力的持续增强，该系列产品将在接下来的市场竞争中占据显著优势，推动整个产业生态向更高能效比方向发展。")
             ),
-            commentCount = 142,
-            originalUrl = "https://www.ithome.com"
+            commentCount = article?.commentCount ?: 88,
+            originalUrl = article?.url ?: "https://www.ithome.com"
         )
     }
 }

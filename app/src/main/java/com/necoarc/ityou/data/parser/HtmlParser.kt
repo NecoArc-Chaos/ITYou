@@ -6,9 +6,38 @@ import com.necoarc.ityou.data.model.ArticleDetail
 import com.necoarc.ityou.data.model.ContentBlock
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
-import org.jsoup.nodes.Element
 
 object HtmlParser {
+
+    /**
+     * 根据文章标题与内容自动推断分类
+     */
+    fun inferCategory(title: String, description: String = ""): ArticleCategory {
+        val text = (title + " " + description).lowercase()
+        return when {
+            text.contains("手机") || text.contains("iphone") || text.contains("android") ||
+                text.contains("骁龙") || text.contains("天玑") || text.contains("ios") ||
+                text.contains("华为") || text.contains("小米") || text.contains("vivo") || text.contains("oppo") -> ArticleCategory.SMARTPHONE
+
+            text.contains("显卡") || text.contains("cpu") || text.contains("笔记本") ||
+                text.contains("intel") || text.contains("amd") || text.contains("rtx") ||
+                text.contains("windows") || text.contains("电脑") || text.contains("主机") -> ArticleCategory.PC
+
+            text.contains("ai") || text.contains("大模型") || text.contains("人工智能") ||
+                text.contains("gpt") || text.contains("deepseek") || text.contains("算法") -> ArticleCategory.AI
+
+            text.contains("车") || text.contains("特斯拉") || text.contains("智驾") ||
+                text.contains("新能源") || text.contains("su7") || text.contains("比亚迪") -> ArticleCategory.AUTOMOTIVE
+
+            text.contains("游戏") || text.contains("steam") || text.contains("ps5") ||
+                text.contains("switch") || text.contains("xbox") || text.contains("悟空") -> ArticleCategory.GAME
+
+            text.contains("数码") || text.contains("耳机") || text.contains("相机") ||
+                text.contains("手表") || text.contains("平板") -> ArticleCategory.DIGITAL
+
+            else -> ArticleCategory.DIGITAL
+        }
+    }
 
     /**
      * 解析 RSS XML 获取文章列表
@@ -33,6 +62,8 @@ object HtmlParser {
                     link.hashCode().toString()
                 }
 
+                val category = inferCategory(title, textSummary)
+
                 if (title.isNotEmpty()) {
                     articles.add(
                         Article(
@@ -42,7 +73,7 @@ object HtmlParser {
                             coverImageUrl = imageUrl,
                             author = "IT之家",
                             publishTime = pubDate,
-                            category = ArticleCategory.ALL,
+                            category = category,
                             url = link
                         )
                     )

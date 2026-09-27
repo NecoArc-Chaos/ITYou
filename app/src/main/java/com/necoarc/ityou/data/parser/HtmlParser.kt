@@ -31,7 +31,8 @@ object HtmlParser {
                 text.contains("switch") || text.contains("xbox") || text.contains("悟空") -> ArticleCategory.GAME
 
             text.contains("人工智能") || text.contains("大模型") || text.contains("gpt") ||
-                text.contains("deepseek") || text.contains("算法") || text.contains("ai") -> ArticleCategory.AI
+                text.contains("deepseek") || text.contains("算法") ||
+                Regex("(?:^|[^a-z])ai(?:[^a-z]|$)").containsMatchIn(text) -> ArticleCategory.AI
 
             text.contains("数码") || text.contains("耳机") || text.contains("相机") ||
                 text.contains("手表") || text.contains("平板") -> ArticleCategory.DIGITAL

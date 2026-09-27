@@ -24,10 +24,8 @@ object HtmlParser {
                 text.contains("intel") || text.contains("amd") || text.contains("rtx") ||
                 text.contains("windows") || text.contains("电脑") || text.contains("主机") -> ArticleCategory.PC
 
-            // 包含独立单词或者中文关键词匹配
             text.contains("人工智能") || text.contains("大模型") || text.contains("gpt") ||
-                text.contains("deepseek") || text.contains("算法") ||
-                Regex("\\bai\\b").containsMatchIn(text) -> ArticleCategory.AI
+                text.contains("deepseek") || text.contains("算法") || text.contains("ai") -> ArticleCategory.AI
 
             text.contains("车") || text.contains("特斯拉") || text.contains("智驾") ||
                 text.contains("新能源") || text.contains("su7") || text.contains("比亚迪") -> ArticleCategory.AUTOMOTIVE

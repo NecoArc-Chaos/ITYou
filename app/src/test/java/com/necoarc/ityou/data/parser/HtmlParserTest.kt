@@ -46,6 +46,14 @@ class HtmlParserTest {
     }
 
     @Test
+    fun inferCategory_aiKeyword_notMatchingEmbedded() {
+        // "deeplearning" 中不应将内嵌的 "ai" 误匹配为 AI 分类
+        assertEquals(ArticleCategory.PC, HtmlParser.inferCategory("深度学习技术解析"))
+        // "人工智能" 中文关键词应正常匹配
+        assertEquals(ArticleCategory.AI, HtmlParser.inferCategory("人工智能最新进展"))
+    }
+
+    @Test
     fun parseArticleDetail_extractsBlocksCorrectly() {
         val sampleHtml = """
             <!DOCTYPE html>

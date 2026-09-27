@@ -42,6 +42,7 @@ class HtmlParserTest {
         assertEquals(ArticleCategory.AI, HtmlParser.inferCategory("DeepSeek 大模型新算法解析"))
         assertEquals(ArticleCategory.AUTOMOTIVE, HtmlParser.inferCategory("小米汽车 SU7 Ultra 交付进度更新"))
         assertEquals(ArticleCategory.GAME, HtmlParser.inferCategory("Steam 新品节与国产 3A 游戏公布"))
+        assertEquals(ArticleCategory.DIGITAL, HtmlParser.inferCategory("索尼发布全新无线降噪耳机"))
     }
 
     @Test

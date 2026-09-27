@@ -1,5 +1,7 @@
 package com.necoarc.ityou.data.model
 
+import java.util.Date
+
 /**
  * 首页文章流模型
  */
@@ -10,9 +12,12 @@ data class Article(
     val coverImageUrl: String? = null,
     val author: String = "IT之家",
     val publishTime: String = "",
+    val publishedDate: Date = Date(),
     val category: ArticleCategory = ArticleCategory.ALL,
     val commentCount: Int = 0,
-    val url: String = ""
+    val url: String = "",
+    val isStarred: Boolean = false,
+    val isRead: Boolean = false
 )
 
 /**
@@ -29,13 +34,15 @@ enum class ArticleCategory(val title: String) {
 }
 
 /**
- * 文章正文段落元素
+ * 仿 ReadYou 的原生 Compose 结构化排版块
  */
 sealed interface ContentBlock {
     data class Paragraph(val text: String) : ContentBlock
     data class Heading(val text: String, val level: Int = 2) : ContentBlock
     data class Image(val url: String, val caption: String? = null) : ContentBlock
     data class BlockQuote(val text: String) : ContentBlock
+    data class CodeBlock(val code: String, val language: String = "") : ContentBlock
+    data class Divider(val text: String = "") : ContentBlock
 }
 
 /**
@@ -49,5 +56,7 @@ data class ArticleDetail(
     val source: String = "IT之家",
     val contentBlocks: List<ContentBlock> = emptyList(),
     val commentCount: Int = 0,
-    val originalUrl: String = ""
+    val originalUrl: String = "",
+    val isStarred: Boolean = false,
+    val readingProgress: Float = 0f
 )

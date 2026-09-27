@@ -6,6 +6,9 @@ import com.necoarc.ityou.data.model.ArticleDetail
 import com.necoarc.ityou.data.model.ContentBlock
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
+import org.jsoup.nodes.Node
+import org.jsoup.nodes.TextNode
 
 object HtmlParser {
 
@@ -56,7 +59,7 @@ object HtmlParser {
                 // 从 description 中抽取首张图片与摘要纯文本
                 val descDoc = Jsoup.parse(description)
                 val imageUrl = descDoc.selectFirst("img")?.attr("src")
-                val textSummary = descDoc.text()
+                val textSummary = descDoc.text().replace("\\s+".toRegex(), " ").trim()
 
                 val articleId = link.substringAfterLast("/").substringBefore(".htm").ifEmpty {
                     link.hashCode().toString()
@@ -86,7 +89,8 @@ object HtmlParser {
     }
 
     /**
-     * 解析 IT 之家网页正文 HTML 为结构化 ContentBlock
+     * 仿照 ReadYou 的 DOM 递归解析算法
+     * 将 HTML 文章正文精准转为 ContentBlock 原生树
      */
     fun parseArticleDetail(html: String, id: String, fallbackUrl: String = ""): ArticleDetail {
         val doc = Jsoup.parse(html)
@@ -102,42 +106,7 @@ object HtmlParser {
         val contentElement = doc.selectFirst("#paragraph, .post_content, .content")
 
         if (contentElement != null) {
-            for (child in contentElement.children()) {
-                when (child.tagName().lowercase()) {
-                    "p" -> {
-                        val img = child.selectFirst("img")
-                        if (img != null) {
-                            val src = img.attr("data-original").ifEmpty { img.attr("src") }
-                            if (src.isNotEmpty()) {
-                                blocks.add(ContentBlock.Image(url = src))
-                            }
-                        } else {
-                            val text = child.text().trim()
-                            if (text.isNotEmpty()) {
-                                blocks.add(ContentBlock.Paragraph(text = text))
-                            }
-                        }
-                    }
-                    "h2", "h3" -> {
-                        val text = child.text().trim()
-                        if (text.isNotEmpty()) {
-                            blocks.add(ContentBlock.Heading(text = text, level = if (child.tagName() == "h2") 2 else 3))
-                        }
-                    }
-                    "blockquote" -> {
-                        val text = child.text().trim()
-                        if (text.isNotEmpty()) {
-                            blocks.add(ContentBlock.BlockQuote(text = text))
-                        }
-                    }
-                    "img" -> {
-                        val src = child.attr("data-original").ifEmpty { child.attr("src") }
-                        if (src.isNotEmpty()) {
-                            blocks.add(ContentBlock.Image(url = src))
-                        }
-                    }
-                }
-            }
+            parseElementRecursive(contentElement, blocks)
         }
 
         return ArticleDetail(
@@ -149,5 +118,64 @@ object HtmlParser {
             contentBlocks = blocks,
             originalUrl = fallbackUrl
         )
+    }
+
+    private fun parseElementRecursive(parent: Element, blocks: MutableList<ContentBlock>) {
+        for (child in parent.children()) {
+            when (child.tagName().lowercase()) {
+                "p" -> {
+                    val img = child.selectFirst("img")
+                    if (img != null) {
+                        val src = img.attr("data-original").ifEmpty { img.attr("src") }
+                        if (src.isNotEmpty()) {
+                            val alt = img.attr("alt").ifEmpty { null }
+                            blocks.add(ContentBlock.Image(url = src, caption = alt))
+                        }
+                    } else {
+                        val text = child.text().trim()
+                        if (text.isNotEmpty()) {
+                            blocks.add(ContentBlock.Paragraph(text = text))
+                        }
+                    }
+                }
+                "h1", "h2" -> {
+                    val text = child.text().trim()
+                    if (text.isNotEmpty()) {
+                        blocks.add(ContentBlock.Heading(text = text, level = 2))
+                    }
+                }
+                "h3", "h4", "h5", "h6" -> {
+                    val text = child.text().trim()
+                    if (text.isNotEmpty()) {
+                        blocks.add(ContentBlock.Heading(text = text, level = 3))
+                    }
+                }
+                "blockquote" -> {
+                    val text = child.text().trim()
+                    if (text.isNotEmpty()) {
+                        blocks.add(ContentBlock.BlockQuote(text = text))
+                    }
+                }
+                "pre", "code" -> {
+                    val code = child.text().trim()
+                    if (code.isNotEmpty()) {
+                        blocks.add(ContentBlock.CodeBlock(code = code))
+                    }
+                }
+                "hr" -> {
+                    blocks.add(ContentBlock.Divider())
+                }
+                "img" -> {
+                    val src = child.attr("data-original").ifEmpty { child.attr("src") }
+                    if (src.isNotEmpty()) {
+                        val alt = child.attr("alt").ifEmpty { null }
+                        blocks.add(ContentBlock.Image(url = src, caption = alt))
+                    }
+                }
+                "div", "section", "article" -> {
+                    parseElementRecursive(child, blocks)
+                }
+            }
+        }
     }
 }

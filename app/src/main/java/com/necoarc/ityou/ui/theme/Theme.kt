@@ -69,6 +69,7 @@ fun ITYouTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = ExpressiveTypography,
         shapes = ExpressiveShapes,
         content = content
     )

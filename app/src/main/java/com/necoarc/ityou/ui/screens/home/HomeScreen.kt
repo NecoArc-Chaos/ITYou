@@ -1,7 +1,13 @@
 package com.necoarc.ityou.ui.screens.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,8 +20,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,11 +39,13 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,6 +55,7 @@ import coil.compose.AsyncImage
 import com.necoarc.ityou.data.model.Article
 import com.necoarc.ityou.data.model.ArticleCategory
 import com.necoarc.ityou.ui.components.ArticleCard
+import com.necoarc.ityou.ui.theme.ShapeCache
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +66,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val listState = rememberLazyListState()
 
     Scaffold(
         topBar = {
@@ -63,11 +74,17 @@ fun HomeScreen(
                 title = {
                     Text(
                         text = "ITYou",
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.Bold
                     )
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.loadArticles() }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Refresh,
+                            contentDescription = "刷新"
+                        )
+                    }
                     IconButton(onClick = {}) {
                         Icon(
                             imageVector = Icons.Outlined.Search,
@@ -101,13 +118,14 @@ fun HomeScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // 1. 分类导航胶囊条 (MD3 Expressive FilterChips)
+                // 1. 分类导航胶囊条 (仿 ReadYou 的胶囊滑动体验)
                 item {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -116,8 +134,8 @@ fun HomeScreen(
                             FilterChip(
                                 selected = uiState.selectedCategory == category,
                                 onClick = { viewModel.selectCategory(category) },
-                                label = { Text(category.title) },
-                                shape = RoundedCornerShape(16.dp),
+                                label = { Text(category.title, style = MaterialTheme.typography.labelLarge) },
+                                shape = ShapeCache.smooth20,
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                                     selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -127,7 +145,7 @@ fun HomeScreen(
                     }
                 }
 
-                // 2. MD3 Expressive 大圆角头条轮播卡片
+                // 2. MD3 Expressive 大圆角头条焦点卡片
                 uiState.articles.firstOrNull()?.let { heroArticle ->
                     item {
                         HeroArticleCard(
@@ -192,6 +210,7 @@ fun HomeScreen(
 
 /**
  * 首页 MD3 Expressive 突出大头条卡片
+ * 融入 PixelPlayer 的微妙触摸缩放反馈与优雅遮罩
  */
 @Composable
 private fun HeroArticleCard(
@@ -199,12 +218,27 @@ private fun HeroArticleCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else 1f,
+        label = "HeroScale"
+    )
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(210.dp)
-            .clip(RoundedCornerShape(28.dp))
-            .clickable(onClick = onClick)
+            .height(220.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(ShapeCache.smooth28)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
     ) {
         AsyncImage(
             model = article.coverImageUrl,
@@ -219,8 +253,8 @@ private fun HeroArticleCard(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f)),
-                        startY = 80f
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.88f)),
+                        startY = 60f
                     )
                 )
         )
@@ -228,18 +262,24 @@ private fun HeroArticleCard(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(18.dp)
+                .padding(20.dp)
         ) {
-            Text(
-                text = "今日热点",
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.White.copy(alpha = 0.9f),
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
+            Surface(
+                shape = ShapeCache.smooth8,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 6.dp)
+            ) {
+                Text(
+                    text = "今日热点",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                )
+            }
             Text(
                 text = article.title,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,

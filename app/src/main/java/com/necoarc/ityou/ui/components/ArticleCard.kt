@@ -1,6 +1,9 @@
 package com.necoarc.ityou.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,51 +12,74 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.outlined.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.necoarc.ityou.data.model.Article
+import com.necoarc.ityou.ui.theme.ShapeCache
 
 /**
- * 遵循 Material Design 3 Expressive 规范的文章流卡片
- * - 24dp 大圆角 ElevatedCard
- * - 鲜活的层次间距与阴影
- * - 规范的 Typography 排版
+ * 借鉴 PixelPlayer 与 ReadYou 风格的 Expressive 文章流卡片
+ * - 24dp 大圆角、平滑曲线剪裁
+ * - 点击时的 Subtle Spring 缩放弹性动效 (graphicsLayer scale)
+ * - 优雅的层级对比与排版
  */
 @Composable
 fun ArticleCard(
     article: Article,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onStarClick: (() -> Unit)? = null
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    // 仿 PixelPlayer 的微交互缩放反馈
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else 1f,
+        label = "CardScale"
+    )
+
     Card(
-        shape = RoundedCornerShape(24.dp),
+        shape = ShapeCache.smooth24,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 1.dp,
-            pressedElevation = 4.dp
+            defaultElevation = 0.dp,
+            pressedElevation = 2.dp
         ),
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .clickable(onClick = onClick)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(ShapeCache.smooth24)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null, // 使用自定义缩放反馈
+                onClick = onClick
+            )
     ) {
         Row(
             modifier = Modifier
@@ -96,7 +122,7 @@ fun ArticleCard(
                         text = article.author,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.SemiBold
                     )
 
                     if (article.publishTime.isNotEmpty()) {
@@ -131,6 +157,20 @@ fun ArticleCard(
                             )
                         }
                     }
+
+                    if (onStarClick != null) {
+                        IconButton(
+                            onClick = onStarClick,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (article.isStarred) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder,
+                                contentDescription = "收藏",
+                                tint = if (article.isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -141,7 +181,7 @@ fun ArticleCard(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(width = 96.dp, height = 72.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(ShapeCache.smooth16)
                 )
             }
         }

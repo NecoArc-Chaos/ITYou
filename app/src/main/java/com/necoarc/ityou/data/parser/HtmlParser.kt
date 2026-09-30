@@ -11,28 +11,28 @@ import org.jsoup.nodes.Element
 object HtmlParser {
 
     /**
-     * 根据文章标题与内容自动推断分类
+     * 根据文章标题与内容自动推断分类。
+     * 优先级从高到低：手机 > PC > 汽车 > 游戏 > AI > 数码 > 默认数码
      */
     fun inferCategory(title: String, description: String = ""): ArticleCategory {
         val text = (title + " " + description).lowercase()
         return when {
-            text.contains("手机") || text.contains("iphone") || text.contains("android") ||
-                text.contains("骁龙") || text.contains("天玑") || text.contains("ios") ||
-                text.contains("华为") || text.contains("小米") || text.contains("vivo") || text.contains("oppo") -> ArticleCategory.SMARTPHONE
+            text.contains("手机") || text.contains("iphone") ||
+                text.contains("骁龙") || text.contains("天玑") ||
+                text.contains("华为") || text.contains("vivo") || text.contains("oppo") -> ArticleCategory.SMARTPHONE
 
             text.contains("显卡") || text.contains("cpu") || text.contains("笔记本") ||
                 text.contains("intel") || text.contains("amd") || text.contains("rtx") ||
                 text.contains("windows") || text.contains("电脑") || text.contains("主机") -> ArticleCategory.PC
 
-            text.contains("车") || text.contains("特斯拉") || text.contains("智驾") ||
+            text.contains("汽车") || text.contains("特斯拉") || text.contains("智驾") ||
                 text.contains("新能源") || text.contains("su7") || text.contains("比亚迪") -> ArticleCategory.AUTOMOTIVE
 
             text.contains("游戏") || text.contains("steam") || text.contains("ps5") ||
-                text.contains("switch") || text.contains("xbox") || text.contains("悟空") -> ArticleCategory.GAME
+                text.contains("xbox") || text.contains("悟空") -> ArticleCategory.GAME
 
             text.contains("人工智能") || text.contains("大模型") || text.contains("gpt") ||
-                text.contains("deepseek") || text.contains("算法") ||
-                Regex("(?:^|[^a-z])ai(?:[^a-z]|$)").containsMatchIn(text) -> ArticleCategory.AI
+                text.contains("deepseek") || text.contains("算法") -> ArticleCategory.AI
 
             text.contains("数码") || text.contains("耳机") || text.contains("相机") ||
                 text.contains("手表") || text.contains("平板") -> ArticleCategory.DIGITAL
@@ -55,7 +55,6 @@ object HtmlParser {
                 val pubDate = item.selectFirst("pubDate")?.text().orEmpty()
                 val description = item.selectFirst("description")?.text().orEmpty()
 
-                // 从 description 中抽取首张图片与摘要纯文本
                 val descDoc = Jsoup.parse(description)
                 val imageUrl = descDoc.selectFirst("img")?.attr("src")
                 val textSummary = descDoc.text().replace("\\s+".toRegex(), " ").trim()
@@ -63,8 +62,6 @@ object HtmlParser {
                 val articleId = link.substringAfterLast("/").substringBefore(".htm").ifEmpty {
                     link.hashCode().toString()
                 }
-
-                val category = inferCategory(title, textSummary)
 
                 if (title.isNotEmpty()) {
                     articles.add(
@@ -75,7 +72,7 @@ object HtmlParser {
                             coverImageUrl = imageUrl,
                             author = "IT之家",
                             publishTime = pubDate,
-                            category = category,
+                            category = inferCategory(title, textSummary),
                             url = link
                         )
                     )
@@ -127,53 +124,37 @@ object HtmlParser {
                     if (img != null) {
                         val src = img.attr("data-original").ifEmpty { img.attr("src") }
                         if (src.isNotEmpty()) {
-                            val alt = img.attr("alt").ifEmpty { null }
-                            blocks.add(ContentBlock.Image(url = src, caption = alt))
+                            blocks.add(ContentBlock.Image(url = src, caption = img.attr("alt").ifEmpty { null }))
                         }
                     } else {
                         val text = child.text().trim()
-                        if (text.isNotEmpty()) {
-                            blocks.add(ContentBlock.Paragraph(text = text))
-                        }
+                        if (text.isNotEmpty()) blocks.add(ContentBlock.Paragraph(text = text))
                     }
                 }
                 "h1", "h2" -> {
                     val text = child.text().trim()
-                    if (text.isNotEmpty()) {
-                        blocks.add(ContentBlock.Heading(text = text, level = 2))
-                    }
+                    if (text.isNotEmpty()) blocks.add(ContentBlock.Heading(text = text, level = 2))
                 }
                 "h3", "h4", "h5", "h6" -> {
                     val text = child.text().trim()
-                    if (text.isNotEmpty()) {
-                        blocks.add(ContentBlock.Heading(text = text, level = 3))
-                    }
+                    if (text.isNotEmpty()) blocks.add(ContentBlock.Heading(text = text, level = 3))
                 }
                 "blockquote" -> {
                     val text = child.text().trim()
-                    if (text.isNotEmpty()) {
-                        blocks.add(ContentBlock.BlockQuote(text = text))
-                    }
+                    if (text.isNotEmpty()) blocks.add(ContentBlock.BlockQuote(text = text))
                 }
                 "pre", "code" -> {
                     val code = child.text().trim()
-                    if (code.isNotEmpty()) {
-                        blocks.add(ContentBlock.CodeBlock(code = code))
-                    }
+                    if (code.isNotEmpty()) blocks.add(ContentBlock.CodeBlock(code = code))
                 }
-                "hr" -> {
-                    blocks.add(ContentBlock.Divider())
-                }
+                "hr" -> blocks.add(ContentBlock.Divider())
                 "img" -> {
                     val src = child.attr("data-original").ifEmpty { child.attr("src") }
                     if (src.isNotEmpty()) {
-                        val alt = child.attr("alt").ifEmpty { null }
-                        blocks.add(ContentBlock.Image(url = src, caption = alt))
+                        blocks.add(ContentBlock.Image(url = src, caption = child.attr("alt").ifEmpty { null }))
                     }
                 }
-                "div", "section", "article" -> {
-                    parseElementRecursive(child, blocks)
-                }
+                "div", "section", "article" -> parseElementRecursive(child, blocks)
             }
         }
     }

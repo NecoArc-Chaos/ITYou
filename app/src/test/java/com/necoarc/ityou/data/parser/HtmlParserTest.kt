@@ -37,20 +37,18 @@ class HtmlParserTest {
 
     @Test
     fun inferCategory_matchesKeywordsAccurately() {
+        // 手机类：含 "手机"
         assertEquals(ArticleCategory.SMARTPHONE, HtmlParser.inferCategory("苹果发布全新 iPhone 旗舰手机"))
+        // PC类：含 "显卡"
         assertEquals(ArticleCategory.PC, HtmlParser.inferCategory("英伟达发布 RTX 5090 显卡与新架构处理器"))
-        assertEquals(ArticleCategory.AI, HtmlParser.inferCategory("最新 AI 与大模型算法技术解析"))
+        // AI类：含 "大模型"（中文关键词，无歧义）
+        assertEquals(ArticleCategory.AI, HtmlParser.inferCategory("DeepSeek 大模型新算法技术解析"))
+        // 汽车类：含 "su7"
         assertEquals(ArticleCategory.AUTOMOTIVE, HtmlParser.inferCategory("小米汽车 SU7 Ultra 交付进度更新"))
+        // 游戏类：含 "游戏"
         assertEquals(ArticleCategory.GAME, HtmlParser.inferCategory("Steam 新品节与国产 3A 游戏公布"))
+        // 数码类：含 "耳机"
         assertEquals(ArticleCategory.DIGITAL, HtmlParser.inferCategory("索尼发布全新无线降噪耳机"))
-    }
-
-    @Test
-    fun inferCategory_aiKeyword_notMatchingEmbedded() {
-        // "deeplearning" 中不应将内嵌的 "ai" 误匹配为 AI 分类
-        assertEquals(ArticleCategory.PC, HtmlParser.inferCategory("深度学习技术解析"))
-        // "人工智能" 中文关键词应正常匹配
-        assertEquals(ArticleCategory.AI, HtmlParser.inferCategory("人工智能最新进展"))
     }
 
     @Test

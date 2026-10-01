@@ -34,10 +34,22 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v1.2.0",
+        releaseDate = "2026-10-01",
+        summary = "构建全新 Material 3 Expressive 主题自适应图标与 Android 13+ 莫奈取色单色层体系。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FEATURE, "支持 Android 13+ 动态壁纸莫奈单色图标 (Themed Icon / Monochrome Layer)"),
+            ChangeItem(ChangeType.DESIGN, "基于 M3E 平滑张力圆角重构 IT之家科技徽标，100% 对齐 66dp 中心安全视口"),
+            ChangeItem(ChangeType.DESIGN, "高质感深灰沉浸底色结合经典科技红 (#D32F2F) 与活力珊瑚红 (#FF5252) 层次视觉"),
+            ChangeItem(ChangeType.IMPROVEMENT, "版本号自动递增至 v1.2.0 (versionCode = 3)")
+        )
+    ),
+    ReleaseNote(
         version = "v1.1.0",
         releaseDate = "2026-10-01",
         summary = "开放自定义本地字体安装与多样化预见式返回转场动效支持，重塑 PixelPlayer 级交互质感。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "支持从本地系统存储安装外部中英文字体 (.ttf / .otf) 并全局生效"),
             ChangeItem(ChangeType.FEATURE, "提供 4 种预见式预测返回与转场动效可选（弹簧滑移、容器缩放、平滑渐变、抽屉升降）"),

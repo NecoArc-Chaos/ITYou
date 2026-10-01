@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 
+      Android 13+ 莫奈取色单色层规范 (Monochrome Themed Icon)
+      - 安全区约束: 严密收敛于中心 66dp x 66dp，即 [21, 21] 到 [87, 87] 区间
+      - 纯白硬编码: 所有 fillColor 必须统一为 #FFFFFFFF
+      - 层级对比: 仅通过 fillAlpha 分层 (底座容器 0.38, 科技微光 0.65, 核心标识 1.0)
+    -->
+
+    <!-- 底层：M3E 表现力平滑圆角外框 (Squircle Container: X[27,81], Y[27,81], r=18dp) -->
+    <path
+        android:fillAlpha="0.38"
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M45,27 L63,27 A18,18 0 0,1 81,45 L81,63 A18,18 0 0,1 63,81 L45,81 A18,18 0 0,1 27,63 L27,45 A18,18 0 0,1 45,27 Z" />
+
+    <!-- 次级层：右上科技能量流切角 (Tech Energy Slice: X[54,81], Y[27,54]) -->
+    <path
+        android:fillAlpha="0.65"
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,27 L63,27 A18,18 0 0,1 81,45 L81,54 Q68,44 54,27 Z" />
+
+    <!-- 主视觉：字母 'I' 顶部数码信标点 (Beacon Dot: Center(40.5, 44), r=3.5) -->
+    <path
+        android:fillAlpha="1.0"
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M40.5,40.5 A3.5,3.5 0 1,0 40.5,47.5 A3.5,3.5 0 1,0 40.5,40.5 Z" />
+
+    <!-- 主视觉：字母 'I' 主体胶囊立柱 (Pillar: X[37,44], Y[51,67], r=3.5) -->
+    <path
+        android:fillAlpha="1.0"
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M40.5,51 A3.5,3.5 0 0,1 44,54.5 L44,63.5 A3.5,3.5 0 0,1 37,63.5 L37,54.5 A3.5,3.5 0 0,1 40.5,51 Z" />
+
+    <!-- 主视觉：字母 'T' 连续科技横梁与主立柱 (T-Monogram: Bar X[49,71] Y[40.5,47.5], Stem X[56.5,63.5] Y[47.5,67]) -->
+    <path
+        android:fillAlpha="1.0"
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M52.5,40.5 L67.5,40.5 A3.5,3.5 0 0,1 71,44 A3.5,3.5 0 0,1 67.5,47.5 L63.5,47.5 L63.5,63.5 A3.5,3.5 0 0,1 56.5,63.5 L56.5,47.5 L52.5,47.5 A3.5,3.5 0 0,1 49,44 A3.5,3.5 0 0,1 52.5,40.5 Z" />
+
+    <!-- 细节层：终端控制台交互光标提示符 (Terminal Cursor: X[66.5,73.5], Y[63,67], r=2) -->
+    <path
+        android:fillAlpha="0.75"
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M68.5,63 L71.5,63 A2,2 0 0,1 73.5,65 A2,2 0 0,1 71.5,67 L68.5,67 A2,2 0 0,1 66.5,65 A2,2 0 0,1 68.5,63 Z" />
+</vector>

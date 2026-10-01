@@ -39,6 +39,7 @@ sealed interface SettingsUiIntent {
 
 sealed interface SettingsUiEffect {
     data class ShowToast(val message: String) : SettingsUiEffect
+    data object HapticFeedback : SettingsUiEffect
 }
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {

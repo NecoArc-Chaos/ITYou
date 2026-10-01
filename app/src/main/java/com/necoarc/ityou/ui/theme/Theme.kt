@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 
 private val LightColorScheme = lightColorScheme(
     primary = ITHomePrimaryLight,
@@ -56,6 +57,7 @@ private val DarkColorScheme = darkColorScheme(
 fun ITYouTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
+    fontFamily: FontFamily = FontFamily.Default,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -69,7 +71,7 @@ fun ITYouTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = ExpressiveTypography,
+        typography = getExpressiveTypography(fontFamily),
         shapes = ExpressiveShapes,
         content = content
     )

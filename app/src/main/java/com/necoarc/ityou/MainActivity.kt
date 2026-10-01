@@ -4,6 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -11,6 +16,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntOffset
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -34,7 +40,10 @@ class MainActivity : ComponentActivity() {
             val settingsRepo = SettingsRepository.getInstance(context)
             val settings by settingsRepo.settings.collectAsState()
 
-            ITYouTheme(dynamicColor = settings.dynamicColorEnabled) {
+            ITYouTheme(
+                dynamicColor = settings.dynamicColorEnabled,
+                fontFamily = settings.selectedFont.fontFamily
+            ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     ITYouNavApp()
                 }
@@ -47,11 +56,37 @@ class MainActivity : ComponentActivity() {
 fun ITYouNavApp() {
     val navController = rememberNavController()
 
+    // 物理弹簧规范：LowBouncy + StiffnessMediumLow
+    val navSpring = spring<IntOffset>(
+        dampingRatio = Spring.DampingRatioLowBouncy,
+        stiffness = Spring.StiffnessMediumLow
+    )
+
     NavHost(
         navController = navController,
         startDestination = "home"
     ) {
-        composable("home") {
+        composable(
+            route = "home",
+            enterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.End,
+                    animationSpec = navSpring
+                ) + fadeIn()
+            },
+            exitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
+                    animationSpec = navSpring
+                ) + fadeOut()
+            },
+            popEnterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.End,
+                    animationSpec = navSpring
+                ) + fadeIn()
+            }
+        ) {
             HomeScreen(
                 onArticleClick = { articleId, url, title, author, pubTime ->
                     val encodedUrl = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
@@ -86,7 +121,25 @@ fun ITYouNavApp() {
                     type = NavType.StringType
                     defaultValue = ""
                 }
-            )
+            ),
+            enterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
+                    animationSpec = navSpring
+                ) + fadeIn()
+            },
+            exitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
+                    animationSpec = navSpring
+                ) + fadeOut()
+            },
+            popExitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.End,
+                    animationSpec = navSpring
+                ) + fadeOut()
+            }
         ) { backStackEntry ->
             val articleId = backStackEntry.arguments?.getString("articleId").orEmpty()
             val rawUrl = backStackEntry.arguments?.getString("url").orEmpty()
@@ -127,7 +180,21 @@ fun ITYouNavApp() {
             )
         }
 
-        composable("settings") {
+        composable(
+            route = "settings",
+            enterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
+                    animationSpec = navSpring
+                ) + fadeIn()
+            },
+            popExitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.End,
+                    animationSpec = navSpring
+                ) + fadeOut()
+            }
+        ) {
             SettingsScreen(
                 onBackClick = {
                     navController.popBackStack()

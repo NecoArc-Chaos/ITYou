@@ -1,5 +1,6 @@
 package com.necoarc.ityou.ui.screens.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,12 +12,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.FontDownload
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -27,9 +31,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.necoarc.ityou.ui.theme.AppFontFamily
+import com.necoarc.ityou.ui.theme.ShapeCache
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,7 +88,7 @@ fun SettingsScreen(
             )
 
             Card(
-                shape = RoundedCornerShape(24.dp),
+                shape = ShapeCache.smooth24,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                 ),
@@ -140,7 +147,61 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "排版与字体选择",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+
+            Card(
+                shape = ShapeCache.smooth24,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    AppFontFamily.entries.forEach { fontOption ->
+                        val isSelected = settings.selectedFont == fontOption
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(ShapeCache.smooth12)
+                                .clickable { viewModel.setSelectedFont(fontOption) }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = fontOption.displayName,
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontFamily = fontOption.fontFamily
+                                    ),
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "字阶与行距自适应渲染预览 - ITYou MD3E",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = fontOption.fontFamily
+                                    ),
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = { viewModel.setSelectedFont(fontOption) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = "关于 ITYou",
@@ -150,7 +211,7 @@ fun SettingsScreen(
             )
 
             Card(
-                shape = RoundedCornerShape(24.dp),
+                shape = ShapeCache.smooth24,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                 ),
@@ -164,7 +225,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "版本 1.0.0 (Material Design 3 Expressive Edition)\n基于 Jetpack Compose 与 Vibe Coding 理念开发",
+                        text = "版本 1.0.0 (Material Design 3 Expressive Edition)\n基于 Jetpack Compose 与 Vibe Coding 理念开发\n支持 Android 14+ 预见式预测返回动效",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

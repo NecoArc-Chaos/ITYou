@@ -34,13 +34,24 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v1.1.0",
+        releaseDate = "2026-10-01",
+        summary = "开放自定义本地字体安装与多样化预见式返回转场动效支持，重塑 PixelPlayer 级交互质感。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FEATURE, "支持从本地系统存储安装外部中英文字体 (.ttf / .otf) 并全局生效"),
+            ChangeItem(ChangeType.FEATURE, "提供 4 种预见式预测返回与转场动效可选（弹簧滑移、容器缩放、平滑渐变、抽屉升降）"),
+            ChangeItem(ChangeType.DESIGN, "PixelPlayer 风格的精致设置项、动态排版实时预览卡片与触感缩放交互"),
+            ChangeItem(ChangeType.IMPROVEMENT, "自动版本号追踪与 versionCode 架构化升级 (v1.1.0)")
+        )
+    ),
+    ReleaseNote(
         version = "v1.0.0",
         releaseDate = "2026-10-01",
         summary = "Material 3 Expressive 正式架构重构，带来纯净原生阅读与视觉跃迁。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
-            ChangeItem(ChangeType.FEATURE, "支持 Android 14+ 预见式预测返回手势 (Predictive Back Gesture)"),
-            ChangeItem(ChangeType.FEATURE, "新增自定义字体家族选择（衬线/无衬线/等宽代码/系统默认）"),
+            ChangeItem(ChangeType.FEATURE, "支持 Android 14+ 预见式预测返回手势系统拦截基础"),
             ChangeItem(ChangeType.DESIGN, "1:1 精确对齐的流光微光骨架屏，解决布局回流跳动问题"),
             ChangeItem(ChangeType.DESIGN, "收敛顶栏标题空间，消除孤立占位行，阅读沉浸感提升"),
             ChangeItem(ChangeType.IMPROVEMENT, "重构 RSS 分类推断引擎与确定性关键词算法")
@@ -52,7 +63,7 @@ val AppReleaseHistory = listOf(
         summary = "细节打磨与动效增强。",
         isLatest = false,
         changes = listOf(
-            ChangeItem(ChangeType.DESIGN, "引入 PixelPlayer 风格的 24dp/28dp 平滑曲率形状系统 (ShapeCache)"),
+            ChangeItem(ChangeType.DESIGN, "引入 24dp/28dp 平滑曲率形状系统 (ShapeCache)"),
             ChangeItem(ChangeType.IMPROVEMENT, "卡片点击引入物理微缩放反馈动效 (graphicsLayer scale)"),
             ChangeItem(ChangeType.FIX, "修复文章详情页面硬编码回退导致的文章内容错配问题")
         )

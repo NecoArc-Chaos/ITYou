@@ -5,10 +5,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -17,16 +22,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.necoarc.ityou.data.model.BackAnimationType
 import com.necoarc.ityou.data.repository.SettingsRepository
 import com.necoarc.ityou.ui.screens.detail.DetailScreen
 import com.necoarc.ityou.ui.screens.home.HomeScreen
 import com.necoarc.ityou.ui.screens.settings.SettingsScreen
 import com.necoarc.ityou.ui.theme.ITYouTheme
+import com.necoarc.ityou.ui.theme.resolveFontFamily
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -40,12 +48,15 @@ class MainActivity : ComponentActivity() {
             val settingsRepo = SettingsRepository.getInstance(context)
             val settings by settingsRepo.settings.collectAsState()
 
+            // 动态解析本地安装字体文件，若无则回退系统默认
+            val dynamicFontFamily = resolveFontFamily(settings.customFontPath)
+
             ITYouTheme(
                 dynamicColor = settings.dynamicColorEnabled,
-                fontFamily = settings.selectedFont.fontFamily
+                fontFamily = dynamicFontFamily
             ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    ITYouNavApp()
+                    ITYouNavApp(backAnimation = settings.backAnimation)
                 }
             }
         }
@@ -53,11 +64,15 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ITYouNavApp() {
+fun ITYouNavApp(backAnimation: BackAnimationType) {
     val navController = rememberNavController()
 
-    // 物理弹簧规范：LowBouncy + StiffnessMediumLow
+    // MD3E 物理阻尼弹簧预设
     val navSpring = spring<IntOffset>(
+        dampingRatio = Spring.DampingRatioLowBouncy,
+        stiffness = Spring.StiffnessMediumLow
+    )
+    val scaleSpring = spring<Float>(
         dampingRatio = Spring.DampingRatioLowBouncy,
         stiffness = Spring.StiffnessMediumLow
     )
@@ -69,22 +84,28 @@ fun ITYouNavApp() {
         composable(
             route = "home",
             enterTransition = {
-                slideIntoContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.End,
-                    animationSpec = navSpring
-                ) + fadeIn()
+                when (backAnimation) {
+                    BackAnimationType.SPRING_SLIDE -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, navSpring) + fadeIn()
+                    BackAnimationType.CONTAINER_SCALE -> scaleIn(initialScale = 0.92f, animationSpec = scaleSpring) + fadeIn()
+                    BackAnimationType.SUBTLE_FADE -> fadeIn(animationSpec = tween(220))
+                    BackAnimationType.DRAWER_LIFT -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Down, navSpring) + fadeIn()
+                }
             },
             exitTransition = {
-                slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                    animationSpec = navSpring
-                ) + fadeOut()
+                when (backAnimation) {
+                    BackAnimationType.SPRING_SLIDE -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, navSpring) + fadeOut()
+                    BackAnimationType.CONTAINER_SCALE -> scaleOut(targetScale = 1.08f, animationSpec = scaleSpring) + fadeOut()
+                    BackAnimationType.SUBTLE_FADE -> fadeOut(animationSpec = tween(180))
+                    BackAnimationType.DRAWER_LIFT -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Up, navSpring) + fadeOut()
+                }
             },
             popEnterTransition = {
-                slideIntoContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.End,
-                    animationSpec = navSpring
-                ) + fadeIn()
+                when (backAnimation) {
+                    BackAnimationType.SPRING_SLIDE -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, navSpring) + fadeIn()
+                    BackAnimationType.CONTAINER_SCALE -> scaleIn(initialScale = 1.06f, animationSpec = scaleSpring) + fadeIn()
+                    BackAnimationType.SUBTLE_FADE -> fadeIn(animationSpec = tween(220))
+                    BackAnimationType.DRAWER_LIFT -> fadeIn(animationSpec = tween(200))
+                }
             }
         ) {
             HomeScreen(
@@ -123,22 +144,28 @@ fun ITYouNavApp() {
                 }
             ),
             enterTransition = {
-                slideIntoContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                    animationSpec = navSpring
-                ) + fadeIn()
+                when (backAnimation) {
+                    BackAnimationType.SPRING_SLIDE -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, navSpring) + fadeIn()
+                    BackAnimationType.CONTAINER_SCALE -> scaleIn(initialScale = 0.90f, animationSpec = scaleSpring) + fadeIn()
+                    BackAnimationType.SUBTLE_FADE -> fadeIn(animationSpec = tween(220))
+                    BackAnimationType.DRAWER_LIFT -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Up, navSpring) + fadeIn()
+                }
             },
             exitTransition = {
-                slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                    animationSpec = navSpring
-                ) + fadeOut()
+                when (backAnimation) {
+                    BackAnimationType.SPRING_SLIDE -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, navSpring) + fadeOut()
+                    BackAnimationType.CONTAINER_SCALE -> scaleOut(targetScale = 1.08f, animationSpec = scaleSpring) + fadeOut()
+                    BackAnimationType.SUBTLE_FADE -> fadeOut(animationSpec = tween(180))
+                    BackAnimationType.DRAWER_LIFT -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Up, navSpring) + fadeOut()
+                }
             },
             popExitTransition = {
-                slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.End,
-                    animationSpec = navSpring
-                ) + fadeOut()
+                when (backAnimation) {
+                    BackAnimationType.SPRING_SLIDE -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, navSpring) + fadeOut()
+                    BackAnimationType.CONTAINER_SCALE -> scaleOut(targetScale = 0.90f, animationSpec = scaleSpring) + fadeOut()
+                    BackAnimationType.SUBTLE_FADE -> fadeOut(animationSpec = tween(180))
+                    BackAnimationType.DRAWER_LIFT -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, navSpring) + fadeOut()
+                }
             }
         ) { backStackEntry ->
             val articleId = backStackEntry.arguments?.getString("articleId").orEmpty()
@@ -183,16 +210,20 @@ fun ITYouNavApp() {
         composable(
             route = "settings",
             enterTransition = {
-                slideIntoContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                    animationSpec = navSpring
-                ) + fadeIn()
+                when (backAnimation) {
+                    BackAnimationType.SPRING_SLIDE -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, navSpring) + fadeIn()
+                    BackAnimationType.CONTAINER_SCALE -> scaleIn(initialScale = 0.90f, animationSpec = scaleSpring) + fadeIn()
+                    BackAnimationType.SUBTLE_FADE -> fadeIn(animationSpec = tween(220))
+                    BackAnimationType.DRAWER_LIFT -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Up, navSpring) + fadeIn()
+                }
             },
             popExitTransition = {
-                slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.End,
-                    animationSpec = navSpring
-                ) + fadeOut()
+                when (backAnimation) {
+                    BackAnimationType.SPRING_SLIDE -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, navSpring) + fadeOut()
+                    BackAnimationType.CONTAINER_SCALE -> scaleOut(targetScale = 0.90f, animationSpec = scaleSpring) + fadeOut()
+                    BackAnimationType.SUBTLE_FADE -> fadeOut(animationSpec = tween(180))
+                    BackAnimationType.DRAWER_LIFT -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, navSpring) + fadeOut()
+                }
             }
         ) {
             SettingsScreen(

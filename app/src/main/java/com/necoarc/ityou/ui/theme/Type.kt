@@ -1,19 +1,27 @@
 package com.necoarc.ityou.ui.theme
 
+import android.graphics.Typeface
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import java.io.File
 
 /**
- * 支持的阅读与界面字体枚举
+ * 动态加载外部本地字体文件并封装为 Compose FontFamily
+ * 若路径无效或字体解析异常，安全回退到系统默认字体 FontFamily.Default
  */
-enum class AppFontFamily(val displayName: String, val fontFamily: FontFamily) {
-    SYSTEM_DEFAULT("系统默认", FontFamily.Default),
-    SERIF("典雅衬线 (Serif)", FontFamily.Serif),
-    SANS_SERIF("现代无衬线 (Sans-Serif)", FontFamily.SansSerif),
-    MONOSPACE("等宽代码 (Monospace)", FontFamily.Monospace)
+fun resolveFontFamily(fontFilePath: String?): FontFamily {
+    if (fontFilePath.isNullOrEmpty()) return FontFamily.Default
+    val file = File(fontFilePath)
+    if (!file.exists() || !file.canRead() || file.length() == 0L) return FontFamily.Default
+    return try {
+        val typeface = Typeface.createFromFile(file)
+        FontFamily(typeface)
+    } catch (_: Exception) {
+        FontFamily.Default
+    }
 }
 
 /**

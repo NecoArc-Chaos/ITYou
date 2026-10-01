@@ -1,9 +1,6 @@
 package com.necoarc.ityou.ui.screens.home
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -25,17 +22,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -56,6 +52,7 @@ import coil.compose.AsyncImage
 import com.necoarc.ityou.data.model.Article
 import com.necoarc.ityou.data.model.ArticleCategory
 import com.necoarc.ityou.ui.components.ArticleCard
+import com.necoarc.ityou.ui.components.HomeSkeletonScreen
 import com.necoarc.ityou.ui.theme.ShapeCache
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,11 +68,11 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            LargeTopAppBar(
+            TopAppBar(
                 title = {
                     Text(
                         text = "ITYou",
-                        style = MaterialTheme.typography.headlineLarge,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -99,7 +96,7 @@ fun HomeScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.largeTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
                 )
@@ -109,14 +106,9 @@ fun HomeScreen(
         modifier = modifier
     ) { innerPadding ->
         if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+            HomeSkeletonScreen(
+                contentPadding = innerPadding
+            )
         } else {
             LazyColumn(
                 state = listState,
@@ -126,7 +118,7 @@ fun HomeScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // 1. 分类导航胶囊条 (仿 ReadYou 的胶囊滑动体验)
+                // 1. 分类导航胶囊条 (MD3 Expressive FilterChips)
                 item {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -211,7 +203,7 @@ fun HomeScreen(
 
 /**
  * 首页 MD3 Expressive 突出大头条卡片
- * 融入 PixelPlayer 的微妙触摸缩放反馈与优雅遮罩
+ * 融入微妙触摸缩放反馈与优雅遮罩
  */
 @Composable
 private fun HeroArticleCard(

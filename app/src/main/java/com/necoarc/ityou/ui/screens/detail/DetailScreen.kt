@@ -1,10 +1,5 @@
 package com.necoarc.ityou.ui.screens.detail
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,7 +24,6 @@ import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.OpenInBrowser
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -44,7 +37,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,7 +45,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -62,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.necoarc.ityou.data.model.ContentBlock
+import com.necoarc.ityou.ui.components.DetailSkeletonScreen
 import com.necoarc.ityou.ui.theme.ShapeCache
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,13 +73,6 @@ fun DetailScreen(
     val listState = rememberLazyListState()
 
     var isStarred by remember { mutableStateOf(false) }
-
-    // 仿 ReadYou 的沉浸式底栏跟随滚动隐藏/显示
-    val isScrollingUp by remember {
-        derivedStateOf {
-            listState.firstVisibleItemIndex == 0 || !listState.isScrollInProgress
-        }
-    }
 
     LaunchedEffect(articleId) {
         viewModel.loadArticleDetail(
@@ -139,63 +124,13 @@ fun DetailScreen(
                 )
             )
         },
-        bottomBar = {
-            // 仿 PixelPlayer 与 ReadYou 的悬浮胶囊底栏 (Floating Pill Toolbar)
-            AnimatedVisibility(
-                visible = isScrollingUp,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        shape = ShapeCache.smooth32,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        shadowElevation = 6.dp,
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Text(
-                                text = "纯净阅读模式",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(4.dp)
-                                    .background(MaterialTheme.colorScheme.outline, ShapeCache.smoothPill)
-                            )
-                            Text(
-                                text = "IT之家原创",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-                }
-            }
-        },
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier
     ) { innerPadding ->
         if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+            DetailSkeletonScreen(
+                contentPadding = innerPadding
+            )
         } else {
             val detail = uiState.detail
             if (detail != null) {
@@ -208,7 +143,7 @@ fun DetailScreen(
                         contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
-                        // 1. 文章大标题 (仿 ReadYou headline 样式)
+                        // 1. 文章大标题
                         item {
                             Text(
                                 text = detail.title,
@@ -347,7 +282,7 @@ fun DetailScreen(
                         }
 
                         item {
-                            Spacer(modifier = Modifier.height(80.dp))
+                            Spacer(modifier = Modifier.height(48.dp))
                         }
                     }
                 }

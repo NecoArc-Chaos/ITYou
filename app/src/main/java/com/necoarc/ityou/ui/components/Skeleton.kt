@@ -18,9 +18,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,9 +51,9 @@ fun Modifier.shimmerEffect(): Modifier {
     )
 
     val shimmerColors = listOf(
-        MaterialTheme.colorScheme.surfaceContainerLow,
-        MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.75f),
-        MaterialTheme.colorScheme.surfaceContainerLow,
+        MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f),
+        MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.85f),
+        MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f),
     )
 
     return this.background(
@@ -64,7 +66,7 @@ fun Modifier.shimmerEffect(): Modifier {
 }
 
 /**
- * 首页专属骨架屏布局
+ * 首页专属骨架屏布局：与真实 HomeScreen 保持 1:1 精确对齐
  */
 @Composable
 fun HomeSkeletonScreen(
@@ -77,13 +79,13 @@ fun HomeSkeletonScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
         userScrollEnabled = false
     ) {
-        // 分类胶囊占位
+        // 1. 分类胶囊占位 (FilterChip 高度与 32dp 药丸对齐)
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), userScrollEnabled = false) {
-                items(5) {
+                items(6) {
                     Box(
                         modifier = Modifier
-                            .size(width = 68.dp, height = 36.dp)
+                            .size(width = 64.dp, height = 32.dp)
                             .clip(ShapeCache.smooth20)
                             .shimmerEffect()
                     )
@@ -91,7 +93,7 @@ fun HomeSkeletonScreen(
             }
         }
 
-        // 今日焦点大卡片占位
+        // 2. 今日焦点大卡片占位 (真实尺寸：fillMaxWidth, height: 220dp, shape: smooth28)
         item {
             Box(
                 modifier = Modifier
@@ -102,54 +104,84 @@ fun HomeSkeletonScreen(
             )
         }
 
-        // 列表条目卡片占位
-        items(4) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(ShapeCache.smooth24)
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                    .padding(16.dp)
+        // 3. 文章流卡片占位 (与 ArticleCard 完全一致的 Card 容器与内外间距)
+        items(5) {
+            Card(
+                shape = ShapeCache.smooth24,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 12.dp)
+                    ) {
+                        // 标题占位：2 行 (对应 titleMedium 24sp line height)
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(0.9f)
+                                .fillMaxWidth(0.92f)
                                 .height(18.dp)
                                 .clip(ShapeCache.smooth8)
                                 .shimmerEffect()
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.65f)
+                                .height(18.dp)
+                                .clip(ShapeCache.smooth8)
+                                .shimmerEffect()
+                        )
+
+                        // 摘要占位：2 行 (对应 bodySmall 22sp line height)
                         Spacer(modifier = Modifier.height(8.dp))
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(0.6f)
+                                .fillMaxWidth(0.98f)
                                 .height(14.dp)
                                 .clip(ShapeCache.smooth8)
                                 .shimmerEffect()
                         )
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.5f)
+                                .height(14.dp)
+                                .clip(ShapeCache.smooth8)
+                                .shimmerEffect()
+                        )
+
+                        // 元数据底部栏 (作者 + 时间)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             Box(
                                 modifier = Modifier
-                                    .size(width = 48.dp, height = 12.dp)
+                                    .size(width = 44.dp, height = 14.dp)
                                     .clip(ShapeCache.smooth8)
                                     .shimmerEffect()
                             )
                             Box(
                                 modifier = Modifier
-                                    .size(width = 56.dp, height = 12.dp)
+                                    .size(width = 80.dp, height = 14.dp)
                                     .clip(ShapeCache.smooth8)
                                     .shimmerEffect()
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
-
+                    // 右侧封面图占位 (真实尺寸：96dp x 72dp, shape: smooth16)
                     Box(
                         modifier = Modifier
                             .size(width = 96.dp, height = 72.dp)
@@ -163,7 +195,7 @@ fun HomeSkeletonScreen(
 }
 
 /**
- * 文章详情阅读页专属骨架屏布局
+ * 文章详情阅读页专属骨架屏布局：与真实 DetailScreen 保持 1:1 对齐
  */
 @Composable
 fun DetailSkeletonScreen(
@@ -176,72 +208,88 @@ fun DetailSkeletonScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        // 标题骨架
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.85f)
-                .height(30.dp)
-                .clip(ShapeCache.smooth12)
-                .shimmerEffect()
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.55f)
-                .height(26.dp)
-                .clip(ShapeCache.smooth12)
-                .shimmerEffect()
-        )
-
-        // 作者元数据骨架
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        // 1. 文章大标题 (对应 headlineLarge 36sp line height, 两行)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(
                 modifier = Modifier
-                    .size(width = 72.dp, height = 22.dp)
+                    .fillMaxWidth(0.92f)
+                    .height(28.dp)
+                    .clip(ShapeCache.smooth12)
+                    .shimmerEffect()
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.6f)
+                    .height(28.dp)
+                    .clip(ShapeCache.smooth12)
+                    .shimmerEffect()
+            )
+        }
+
+        // 2. 元数据作者徽章与发布时间 (高度与 DetailScreen 徽章对齐)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 54.dp, height = 22.dp)
                     .clip(ShapeCache.smooth8)
                     .shimmerEffect()
             )
             Box(
                 modifier = Modifier
-                    .size(width = 90.dp, height = 16.dp)
+                    .size(width = 110.dp, height = 16.dp)
                     .clip(ShapeCache.smooth8)
                     .shimmerEffect()
             )
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        // 3. 分割线
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+            thickness = 1.dp
+        )
 
-        // 段落文字骨架
-        repeat(3) {
+        // 4. 正文段落文字骨架 (对应 bodyLarge 28sp line height)
+        repeat(2) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(16.dp)
+                        .height(18.dp)
                         .clip(ShapeCache.smooth8)
                         .shimmerEffect()
                 )
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.95f)
-                        .height(16.dp)
+                        .fillMaxWidth(0.96f)
+                        .height(18.dp)
                         .clip(ShapeCache.smooth8)
                         .shimmerEffect()
                 )
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.7f)
-                        .height(16.dp)
+                        .fillMaxWidth(0.88f)
+                        .height(18.dp)
+                        .clip(ShapeCache.smooth8)
+                        .shimmerEffect()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.45f)
+                        .height(18.dp)
                         .clip(ShapeCache.smooth8)
                         .shimmerEffect()
                 )
             }
         }
 
-        // 大图骨架
+        // 5. 大插图骨架 (大圆角 24dp)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(190.dp)
+                .height(200.dp)
                 .clip(ShapeCache.smooth24)
                 .shimmerEffect()
         )

@@ -19,41 +19,85 @@ class ArticleRepository(
 ) {
 
     /**
-     * 获取文章列表并按所选分类过滤
+     * 获取文章列表：
+     * 支持分页瀑布流加载（若指定 lastOrderTimestamp 则向上继续翻页拉取历史文章）
      */
-    suspend fun getArticles(category: ArticleCategory = ArticleCategory.ALL): Result<List<Article>> =
-        withContext(Dispatchers.IO) {
-            val allArticles = try {
+    suspend fun getArticles(
+        category: ArticleCategory = ArticleCategory.ALL,
+        lastOrderTimestamp: Long = 0L
+    ): Result<List<Article>> = withContext(Dispatchers.IO) {
+        // 1. 尝试从移动端无限分页接口拉取
+        val apiArticles = try {
+            val url = if (lastOrderTimestamp > 0L) {
+                "https://m.ithome.com/api/news/newslistpageget?ot=$lastOrderTimestamp"
+            } else {
+                "https://m.ithome.com/api/news/newslistpageget"
+            }
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) ITYou-App/1.2")
+                .header("Referer", "https://m.ithome.com/")
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val json = response.body?.string().orEmpty()
+                HtmlParser.parseJsonNews(json)
+            } else {
+                emptyList()
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        if (apiArticles.isNotEmpty()) {
+            val filtered = if (category == ArticleCategory.ALL) {
+                apiArticles
+            } else {
+                apiArticles.filter { it.category == category }
+            }
+            return@withContext Result.success(filtered)
+        }
+
+        // 2. 若 API 拉取失败且为第一页，回退到标准 RSS 源
+        if (lastOrderTimestamp == 0L) {
+            val rssArticles = try {
                 val request = Request.Builder()
                     .url("https://www.ithome.com/rss/")
-                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) ITYou-App/1.0")
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) ITYou-App/1.2")
                     .build()
 
                 val response = client.newCall(request).execute()
                 if (response.isSuccessful) {
                     val xml = response.body?.string().orEmpty()
-                    val parsed = HtmlParser.parseRss(xml)
-                    if (parsed.isNotEmpty()) {
-                        parsed
-                    } else {
-                        getFallbackArticles()
-                    }
+                    HtmlParser.parseRss(xml)
                 } else {
-                    getFallbackArticles()
+                    emptyList()
                 }
             } catch (_: Exception) {
-                getFallbackArticles()
+                emptyList()
             }
 
-            // 根据分类筛选
-            val filtered = if (category == ArticleCategory.ALL) {
-                allArticles
-            } else {
-                allArticles.filter { it.category == category }
+            if (rssArticles.isNotEmpty()) {
+                val filtered = if (category == ArticleCategory.ALL) {
+                    rssArticles
+                } else {
+                    rssArticles.filter { it.category == category }
+                }
+                return@withContext Result.success(filtered)
             }
-
-            Result.success(filtered)
         }
+
+        // 3. 网络异常时的兜底样本数据
+        val fallback = if (lastOrderTimestamp == 0L) {
+            val raw = getFallbackArticles()
+            if (category == ArticleCategory.ALL) raw else raw.filter { it.category == category }
+        } else {
+            emptyList()
+        }
+
+        Result.success(fallback)
+    }
 
     /**
      * 获取文章详情
@@ -64,29 +108,28 @@ class ArticleRepository(
         previewTitle: String = "",
         previewAuthor: String = "",
         previewPubTime: String = ""
-    ): Result<ArticleDetail> =
-        withContext(Dispatchers.IO) {
-            try {
-                if (url.isNotEmpty()) {
-                    val request = Request.Builder()
-                        .url(url)
-                        .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) ITYou-App/1.0")
-                        .build()
+    ): Result<ArticleDetail> = withContext(Dispatchers.IO) {
+        try {
+            if (url.isNotEmpty()) {
+                val request = Request.Builder()
+                    .url(url)
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) ITYou-App/1.2")
+                    .build()
 
-                    val response = client.newCall(request).execute()
-                    if (response.isSuccessful) {
-                        val html = response.body?.string().orEmpty()
-                        val detail = HtmlParser.parseArticleDetail(html, articleId, url)
-                        if (detail.contentBlocks.isNotEmpty()) {
-                            return@withContext Result.success(detail)
-                        }
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val html = response.body?.string().orEmpty()
+                    val detail = HtmlParser.parseArticleDetail(html, articleId, url)
+                    if (detail.contentBlocks.isNotEmpty()) {
+                        return@withContext Result.success(detail)
                     }
                 }
-                Result.success(getFallbackDetail(articleId, previewTitle, previewAuthor, previewPubTime))
-            } catch (_: Exception) {
-                Result.success(getFallbackDetail(articleId, previewTitle, previewAuthor, previewPubTime))
             }
+            Result.success(getFallbackDetail(articleId, previewTitle, previewAuthor, previewPubTime))
+        } catch (_: Exception) {
+            Result.success(getFallbackDetail(articleId, previewTitle, previewAuthor, previewPubTime))
         }
+    }
 
     private fun getFallbackArticles(): List<Article> {
         return listOf(

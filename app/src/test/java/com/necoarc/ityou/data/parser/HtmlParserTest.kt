@@ -8,6 +8,52 @@ import org.junit.Test
 class HtmlParserTest {
 
     @Test
+    fun parseJsonNews_extractsArticlesAndPagingTimestampCorrectly() {
+        val sampleJson = """
+            {
+                "Success": 1,
+                "Result": [
+                    {
+                        "newsid": 1009170,
+                        "title": "长安汽车 9 月交付 22.89 万辆，海外大增 73.8%",
+                        "description": "长安汽车公布 9 月交付数据，新能源交付超 11.3 万辆。",
+                        "image": "https://img.ithome.com/test_car.jpg",
+                        "orderdate": "2026-10-01T23:47:33.417",
+                        "PostDateStr": "昨日 23:47",
+                        "commentcount": 10,
+                        "url": "/1/009/170.htm",
+                        "isad": false,
+                        "NewsTips": []
+                    },
+                    {
+                        "newsid": 1009171,
+                        "title": "24 支仅需 9.8 元：某品牌水彩笔特惠",
+                        "description": "促销打折活动",
+                        "image": "https://img.ithome.com/ad.jpg",
+                        "orderdate": "2026-10-01T23:45:00",
+                        "PostDateStr": "昨日 23:45",
+                        "commentcount": 2,
+                        "url": "https://lapin.ithome.com/html/digi/1009171.htm",
+                        "isad": true,
+                        "NewsTips": [{"TipClass": "tip-gray", "TipName": "广告"}]
+                    }
+                ]
+            }
+        """.trimIndent()
+
+        val articles = HtmlParser.parseJsonNews(sampleJson)
+
+        // 广告条目与 lapin 导购条目应被自动过滤
+        assertEquals(1, articles.size)
+        val article = articles[0]
+        assertEquals("1009170", article.id)
+        assertEquals("长安汽车 9 月交付 22.89 万辆，海外大增 73.8%", article.title)
+        assertEquals(ArticleCategory.AUTOMOTIVE, article.category)
+        assertTrue(article.orderTimestamp > 0L)
+        assertEquals("https://www.ithome.com/1/009/170.htm", article.url)
+    }
+
+    @Test
     fun parseRss_extractsArticlesCorrectly() {
         val sampleRss = """
             <?xml version="1.0" encoding="utf-8"?>

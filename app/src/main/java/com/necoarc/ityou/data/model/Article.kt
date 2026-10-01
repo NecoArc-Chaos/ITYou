@@ -17,7 +17,8 @@ data class Article(
     val commentCount: Int = 0,
     val url: String = "",
     val isStarred: Boolean = false,
-    val isRead: Boolean = false
+    val isRead: Boolean = false,
+    val orderTimestamp: Long = 0L // 用于分页瀑布流游标加载
 )
 
 /**

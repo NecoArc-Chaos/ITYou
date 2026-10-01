@@ -9,11 +9,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -22,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -34,7 +38,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -65,6 +71,21 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
+
+    // 监听列表滚动位置：当倒数第 3 项进入可见范围且还有更多数据时，自动预加载下一页
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val totalItems = listState.layoutInfo.totalItemsCount
+            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            totalItems > 0 && lastVisibleIndex >= totalItems - 3
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore && !uiState.isLoading && !uiState.isLoadingMore && uiState.hasMore) {
+            viewModel.loadMoreArticles()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -176,6 +197,56 @@ fun HomeScreen(
                     )
                 }
 
+                // 4. 底部上拉加载状态指示器 (MD3E 胶囊进度与提示)
+                if (uiState.isLoadingMore) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Surface(
+                                shape = ShapeCache.smoothPill,
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "正在探索更多前沿科技...",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else if (!uiState.hasMore && uiState.articles.isNotEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "已为你呈现全部最新资讯",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                }
+
                 if (uiState.articles.isEmpty()) {
                     item {
                         Box(
@@ -194,7 +265,7 @@ fun HomeScreen(
                 }
 
                 item {
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }

@@ -4,9 +4,13 @@ import com.necoarc.ityou.data.model.Article
 import com.necoarc.ityou.data.model.ArticleCategory
 import com.necoarc.ityou.data.model.ArticleDetail
 import com.necoarc.ityou.data.model.ContentBlock
+import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 
 object HtmlParser {
 
@@ -42,6 +46,85 @@ object HtmlParser {
     }
 
     /**
+     * 解析移动端 API 返回的 JSON 列表数据（支持流式分页）
+     */
+    fun parseJsonNews(jsonContent: String): List<Article> {
+        val articles = mutableListOf<Article>()
+        try {
+            val root = JSONObject(jsonContent)
+            if (root.optInt("Success") != 1) return emptyList()
+            val list = root.optJSONArray("Result") ?: return emptyList()
+
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault()).apply {
+                timeZone = TimeZone.getTimeZone("GMT+8")
+            }
+
+            for (i in 0 until list.length()) {
+                val item = list.getJSONObject(i)
+                val newsId = item.optLong("newsid").toString()
+                val title = item.optString("title").trim()
+                val description = item.optString("description").trim()
+                val image = item.optString("image").ifEmpty { null }
+                val orderDateStr = item.optString("orderdate")
+                val postDateStr = item.optString("PostDateStr").ifEmpty { "刚刚" }
+                val commentCount = item.optInt("commentcount", 0)
+                val rawUrl = item.optString("url")
+                val wapUrl = item.optString("WapNewsUrl")
+
+                // 过滤导购与纯广告流条目
+                val tips = item.optJSONArray("NewsTips")
+                var isAd = item.optBoolean("isad", false)
+                if (tips != null) {
+                    for (t in 0 until tips.length()) {
+                        val tipObj = tips.optJSONObject(t)
+                        if (tipObj?.optString("TipName") == "广告") {
+                            isAd = true
+                            break
+                        }
+                    }
+                }
+                if (isAd || rawUrl.contains("lapin.ithome.com")) {
+                    continue
+                }
+
+                val fullUrl = when {
+                    rawUrl.startsWith("http") -> rawUrl
+                    rawUrl.isNotEmpty() -> "https://www.ithome.com$rawUrl"
+                    wapUrl.isNotEmpty() -> wapUrl
+                    else -> "https://www.ithome.com/0/${newsId.take(3)}/${newsId.takeLast(3)}.htm"
+                }
+
+                val orderTimestamp = try {
+                    val cleanDate = orderDateStr.substringBefore(".")
+                    dateFormat.parse(cleanDate)?.time ?: System.currentTimeMillis()
+                } catch (_: Exception) {
+                    System.currentTimeMillis()
+                }
+
+                if (title.isNotEmpty()) {
+                    articles.add(
+                        Article(
+                            id = newsId,
+                            title = title,
+                            summary = description,
+                            coverImageUrl = image,
+                            author = "IT之家",
+                            publishTime = postDateStr,
+                            category = inferCategory(title, description),
+                            commentCount = commentCount,
+                            url = fullUrl,
+                            orderTimestamp = orderTimestamp
+                        )
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            // 解析容错
+        }
+        return articles
+    }
+
+    /**
      * 解析 RSS XML 获取文章列表
      */
     fun parseRss(xmlContent: String): List<Article> {
@@ -73,7 +156,8 @@ object HtmlParser {
                             author = "IT之家",
                             publishTime = pubDate,
                             category = inferCategory(title, textSummary),
-                            url = link
+                            url = link,
+                            orderTimestamp = System.currentTimeMillis()
                         )
                     )
                 }

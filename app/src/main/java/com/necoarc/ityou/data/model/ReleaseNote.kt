@@ -34,10 +34,23 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v1.3.0",
+        releaseDate = "2026-10-02",
+        summary = "全面接入移动端分页无限滚动数据源，支持上拉触底静默预加载与智能导购广告过滤。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FEATURE, "支持无限分页流式加载（基于时间戳游标的流式翻页与历史文章按需拉取）"),
+            ChangeItem(ChangeType.FEATURE, "列表触底智能预判：滑至倒数第 3 项自动无感发起预加载"),
+            ChangeItem(ChangeType.DESIGN, "MD3E 胶囊式底部加载状态与全部已加载完的轻量视觉指示"),
+            ChangeItem(ChangeType.IMPROVEMENT, "自动过滤导购与插播推广内容，保证 100% 纯净科技新闻阅读体验"),
+            ChangeItem(ChangeType.IMPROVEMENT, "版本号自动升级为 v1.3.0 (versionCode = 4)")
+        )
+    ),
+    ReleaseNote(
         version = "v1.2.0",
         releaseDate = "2026-10-01",
         summary = "构建全新 Material 3 Expressive 主题自适应图标与 Android 13+ 莫奈取色单色层体系。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "支持 Android 13+ 动态壁纸莫奈单色图标 (Themed Icon / Monochrome Layer)"),
             ChangeItem(ChangeType.DESIGN, "基于 M3E 平滑张力圆角重构 IT之家科技徽标，100% 对齐 66dp 中心安全视口"),

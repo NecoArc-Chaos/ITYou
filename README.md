@@ -12,6 +12,9 @@
   <a href="https://github.com/NecoArc-Chaos/ITYou/actions/workflows/ci.yml">
     <img src="https://github.com/NecoArc-Chaos/ITYou/actions/workflows/ci.yml/badge.svg" alt="Android CI" />
   </a>
+  <a href="https://github.com/NecoArc-Chaos/ITYou/releases">
+    <img src="https://img.shields.io/github/v/release/NecoArc-Chaos/ITYou?include_prereleases&label=Pre-Release&color=orange" alt="GitHub Pre-Release" />
+  </a>
   <img src="https://img.shields.io/badge/Platform-Android_14%2B-brightgreen.svg" alt="Platform" />
   <img src="https://img.shields.io/badge/UI-Jetpack_Compose-4285F4.svg" alt="Compose" />
   <img src="https://img.shields.io/badge/Design-Material_3_Expressive-EA4335.svg" alt="MD3E" />
@@ -71,11 +74,10 @@ ITYou/
 
 ---
 
-## 📦 构建与体验
+## 📦 下载与体验
 
 - **运行要求**：Android 8.0 (API 26) 及以上，推荐 Android 14+ 以获得最佳预见式返回动效。
-- **编译产物**：每次代码提交都会由 GitHub Actions 自动执行单元测试，并分别产出 **Debug APK** 与开启 R8 / Baseline Profile 优化的 **Release APK**。
-- **下载体验**：前往仓库的 [Actions](https://github.com/NecoArc-Chaos/ITYou/actions) 页面，点击最新通过的流水线并在下方 **Artifacts** 处下载 `ITYou-release-apk`。
+- **下载安装**：前往仓库的 [**Releases 页面**](https://github.com/NecoArc-Chaos/ITYou/releases) 获取最新的 Pre-Release 安装包（`ITYou-v1.5.0-release.apk`，内置 R8 深度混淆与 Baseline Profile 优化）。
 
 ---
 

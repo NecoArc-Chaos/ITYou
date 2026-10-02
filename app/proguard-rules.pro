@@ -17,6 +17,9 @@
 # 保留其包内符号以避免 R8 过度裁剪导致的运行时解析失败。
 -keep class org.jsoup.** { *; }
 -keepclassmembers class org.jsoup.** { *; }
+# Jsoup 1.18+ 在 package-info / 内部类使用了 jspecify 可选注解，
+# 编译期不会打包该依赖，R8 默认会报错，声明 dontwarn 忽略即可。
+-dontwarn org.jspecify.annotations.**
 
 # ---- Coil 图片加载 ----
 -keep class coil.** { *; }

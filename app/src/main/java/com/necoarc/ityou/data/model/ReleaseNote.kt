@@ -34,16 +34,26 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v1.3.1",
+        releaseDate = "2026-10-02",
+        summary = "修复 JVM 单元测试环境下的 JSON 解析依赖桩问题，版本号自动递增。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FIX, "补充 testImplementation 真实 org.json 引擎，修复单元测试桩方法未模拟报错"),
+            ChangeItem(ChangeType.IMPROVEMENT, "配置 unitTests.isReturnDefaultValues 提升测试容错稳定性"),
+            ChangeItem(ChangeType.IMPROVEMENT, "递增构建版本号至 v1.3.1 (versionCode = 5)")
+        )
+    ),
+    ReleaseNote(
         version = "v1.3.0",
         releaseDate = "2026-10-02",
         summary = "全面接入移动端分页无限滚动数据源，支持上拉触底静默预加载与智能导购广告过滤。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "支持无限分页流式加载（基于时间戳游标的流式翻页与历史文章按需拉取）"),
             ChangeItem(ChangeType.FEATURE, "列表触底智能预判：滑至倒数第 3 项自动无感发起预加载"),
             ChangeItem(ChangeType.DESIGN, "MD3E 胶囊式底部加载状态与全部已加载完的轻量视觉指示"),
-            ChangeItem(ChangeType.IMPROVEMENT, "自动过滤导购与插播推广内容，保证 100% 纯净科技新闻阅读体验"),
-            ChangeItem(ChangeType.IMPROVEMENT, "版本号自动升级为 v1.3.0 (versionCode = 4)")
+            ChangeItem(ChangeType.IMPROVEMENT, "自动过滤导购与插播推广内容，保证 100% 纯净科技新闻阅读体验")
         )
     ),
     ReleaseNote(
@@ -54,8 +64,7 @@ val AppReleaseHistory = listOf(
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "支持 Android 13+ 动态壁纸莫奈单色图标 (Themed Icon / Monochrome Layer)"),
             ChangeItem(ChangeType.DESIGN, "基于 M3E 平滑张力圆角重构 IT之家科技徽标，100% 对齐 66dp 中心安全视口"),
-            ChangeItem(ChangeType.DESIGN, "高质感深灰沉浸底色结合经典科技红 (#D32F2F) 与活力珊瑚红 (#FF5252) 层次视觉"),
-            ChangeItem(ChangeType.IMPROVEMENT, "版本号自动递增至 v1.2.0 (versionCode = 3)")
+            ChangeItem(ChangeType.DESIGN, "高质感深灰沉浸底色结合经典科技红 (#D32F2F) 与活力珊瑚红 (#FF5252) 层次视觉")
         )
     ),
     ReleaseNote(
@@ -66,8 +75,7 @@ val AppReleaseHistory = listOf(
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "支持从本地系统存储安装外部中英文字体 (.ttf / .otf) 并全局生效"),
             ChangeItem(ChangeType.FEATURE, "提供 4 种预见式预测返回与转场动效可选（弹簧滑移、容器缩放、平滑渐变、抽屉升降）"),
-            ChangeItem(ChangeType.DESIGN, "PixelPlayer 风格的精致设置项、动态排版实时预览卡片与触感缩放交互"),
-            ChangeItem(ChangeType.IMPROVEMENT, "自动版本号追踪与 versionCode 架构化升级 (v1.1.0)")
+            ChangeItem(ChangeType.DESIGN, "PixelPlayer 风格的精致设置项、动态排版实时预览卡片与触感缩放交互")
         )
     ),
     ReleaseNote(

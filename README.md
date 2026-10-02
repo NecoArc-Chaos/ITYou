@@ -1,12 +1,22 @@
-# ITYou (IT之家第三方客户端)
+<p align="center">
+  <img src="art/logo.svg" width="108" height="108" alt="ITYou Logo" />
+</p>
 
-[![Android CI](https://github.com/NecoArc-Chaos/ITYou/actions/workflows/ci.yml/badge.svg)](https://github.com/NecoArc-Chaos/ITYou/actions/workflows/ci.yml)
-![Platform](https://img.shields.io/badge/Platform-Android_14%2B-brightgreen.svg)
-![Compose](https://img.shields.io/badge/UI-Jetpack_Compose-4285F4.svg)
-![Design](https://img.shields.io/badge/Design-Material_3_Expressive-EA4335.svg)
-![License](https://img.shields.io/badge/License-MIT-blue.svg)
+<h1 align="center">ITYou</h1>
 
-**ITYou** 是一款 100% 基于纯 **Jetpack Compose** 打造、深度遵循 **Material Design 3 Expressive (MD3E)** 设计语言的 IT 之家现代第三方 Android 客户端。
+<p align="center">
+  <b>遵循 Material Design 3 Expressive (MD3E) 设计规范的 IT 之家现代 Android 客户端</b>
+</p>
+
+<p align="center">
+  <a href="https://github.com/NecoArc-Chaos/ITYou/actions/workflows/ci.yml">
+    <img src="https://github.com/NecoArc-Chaos/ITYou/actions/workflows/ci.yml/badge.svg" alt="Android CI" />
+  </a>
+  <img src="https://img.shields.io/badge/Platform-Android_14%2B-brightgreen.svg" alt="Platform" />
+  <img src="https://img.shields.io/badge/UI-Jetpack_Compose-4285F4.svg" alt="Compose" />
+  <img src="https://img.shields.io/badge/Design-Material_3_Expressive-EA4335.svg" alt="MD3E" />
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License" />
+</p>
 
 ---
 
@@ -15,7 +25,7 @@
 ### 🎨 Material Design 3 Expressive 表现力视觉
 - **大曲率连续平滑形状体系**：采用 24dp/28dp 张力圆角卡片、胶囊药丸（Pill）指示器与多层级 SurfaceContainer 容器色差构建视觉层级，100% 无传统硬质分割线。
 - **物理弹簧微交互动效**：卡片按压与预见式预测返回转场均采用低反弹弹性弹簧曲线（Spring Spec: `DampingRatioLowBouncy`, `StiffnessMediumLow`）。
-- **Android 13+ 主题单色自适应图标**：完美对齐 66dp 安全视口中心，无缝融合系统壁纸 Monet 动态色彩。
+- **Android 13+ 主题自适应图标**：中心对齐 66dp 安全视口，内置 Android 13+ Monochrome 单色层，无缝支持系统壁纸 Monet 动态色彩提取。
 
 ### 🔤 雅致排版与个性化字体
 - **内置默认字体**：默认随包集成圆润高质感的「**丸子黑体 (Maruko Gothic)**」，赋予全界面独特而舒适的中文阅读体验。
@@ -37,6 +47,8 @@
 
 ```
 ITYou/
+├── art/
+│   └── logo.svg                         # 表现型应用矢量徽标
 ├── app/
 │   ├── src/main/java/com/necoarc/ityou/
 │   │   ├── ITYouApplication.kt          # 全局基础设施、网络单例与 Coil 调优配置

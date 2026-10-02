@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="128" height="128">
+  <defs>
+    <!-- 背景深邃科技渐变底座 -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E1F24" />
+      <stop offset="100%" stop-color="#121316" />
+    </linearGradient>
+    <!-- 主体科技红到珊瑚红渐变 -->
+    <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF5252" />
+      <stop offset="100%" stop-color="#D32F2F" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- 背景平滑大圆角底板 (中心对齐) -->
+  <rect x="6" y="6" width="96" height="96" rx="28" fill="url(#bgGrad)" />
+
+  <!-- 外层 M3E 表现力平滑圆角外框 (带微阴影) -->
+  <path d="M45,27 L63,27 A18,18 0 0,1 81,45 L81,63 A18,18 0 0,1 63,81 L45,81 A18,18 0 0,1 27,63 L27,45 A18,18 0 0,1 45,27 Z"
+        fill="url(#redGrad)" filter="url(#shadow)" />
+
+  <!-- 右上高光科技切角 -->
+  <path d="M54,27 L63,27 A18,18 0 0,1 81,45 L81,54 Q68,44 54,27 Z" fill="#FF8A80" opacity="0.85" />
+
+  <!-- 字母 'I' 顶部信标圆点 -->
+  <circle cx="40.5" cy="44" r="3.5" fill="#FFFFFF" />
+
+  <!-- 字母 'I' 胶囊立柱 -->
+  <path d="M40.5,51 A3.5,3.5 0 0,1 44,54.5 L44,63.5 A3.5,3.5 0 0,1 37,63.5 L37,54.5 A3.5,3.5 0 0,1 40.5,51 Z" fill="#FFFFFF" />
+
+  <!-- 字母 'T' 科技横梁与主立柱 -->
+  <path d="M52.5,40.5 L67.5,40.5 A3.5,3.5 0 0,1 71,44 A3.5,3.5 0 0,1 67.5,47.5 L63.5,47.5 L63.5,63.5 A3.5,3.5 0 0,1 56.5,63.5 L56.5,47.5 L52.5,47.5 A3.5,3.5 0 0,1 49,44 A3.5,3.5 0 0,1 52.5,40.5 Z" fill="#FFFFFF" />
+
+  <!-- 终端交互提示符 -->
+  <path d="M68.5,63 L71.5,63 A2,2 0 0,1 73.5,65 A2,2 0 0,1 71.5,67 L68.5,67 A2,2 0 0,1 66.5,65 A2,2 0 0,1 68.5,63 Z" fill="#FFCDD2" />
+</svg>

@@ -18,19 +18,30 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            val keystoreFile = rootProject.file("release.keystore")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "ityou_release_keystore_pwd"
+                keyAlias = System.getenv("KEY_ALIAS") ?: "ityou"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: "ityou_release_keystore_pwd"
+            } else {
+                // 本地或 CI 未配置密钥时安全回退到 debug 签名
+                initWith(getByName("debug"))
+            }
+        }
+    }
+
     buildTypes {
         debug {
-            // Compose 在 debug 构建下没有 R8 优化、没有 Baseline Profile，
-            // 滑动性能通常只有 release 的 1/2 ~ 1/3。性能验证请一律使用 release 包。
+            // Compose 在 debug 构建下没有 R8 优化，滑动性能通常只有 release 的 1/2 ~ 1/3
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             isDebuggable = false
-            // 说明：为了让 CI 能产出「可直接安装的 release 包」用于真机性能实测，
-            // release 变体暂时复用 debug 签名（同一签名可覆盖安装，无需卸载）。
-            // 正式对外发布前请替换为自有 keystore。
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

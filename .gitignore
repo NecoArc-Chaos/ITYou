@@ -16,3 +16,9 @@ captures/
 .cxx/
 *.apk
 *.aab
+
+# Release keystore credentials
+release.keystore
+*.keystore
+*.p12
+*.jks

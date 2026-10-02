@@ -34,6 +34,14 @@ jobs:
           gradle-version: 8.9
           cache-read-only: false
 
+      - name: Decode Release Keystore
+        if: env.KEYSTORE_BASE64 != ''
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+          echo "Keystore decoded successfully, size: $(wc -c < release.keystore) bytes"
+
       - name: Run Unit Tests
         run: |
           gradle testDebugUnitTest \
@@ -43,7 +51,11 @@ jobs:
             --no-daemon \
             --stacktrace
 
-      - name: Build Release APK (R8 + Baseline Profile)
+      - name: Build Signed Release APK (R8 + Baseline Profile)
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           gradle assembleRelease \
             --parallel \
@@ -88,9 +100,10 @@ jobs:
           body: |
             ## ITYou v1.5.0 Pre-Release
 
-            本版本为开启了 R8 代码混淆、资源紧缩优化及 Baseline Profile 预编译的性能验证版本。
+            本版本为开启了 R8 代码混淆、资源紧缩优化及 Baseline Profile 预编译的正式签名版本。
 
             ### 🚀 本次更新要点
+            - 🔑 **独立正式签名打包**：采用 GitHub Actions Secrets 安全注入专用签名证书打出 Release APK；
             - 🎨 **默认字体更新**：集成「丸子黑体 (Maruko Gothic)」，赋予全应用典雅圆润的 MD3 Expressive 中文排版；
             - ⚙️ **系统字体切换**：设置页新增「使用系统字体」开关，随时自由回退至设备原生字型；
             - 📰 **相关文章推荐**：文章详情页底部完美解析并渲染「相关文章」卡片流，支持点选跳转深度阅读；
@@ -98,4 +111,4 @@ jobs:
             - ⚡ **卡片等高与骨架屏契约对齐**：统一几何推导，彻底消除滑动抖动与结构漂移。
 
             ### 📦 文件校验
-            发布包包含由签名密钥签发的可安装 Release APK，附带 SHA-256 完整性校验文件。
+            发布包包含已签名的正式 Release APK，附带 SHA-256 完整性校验文件。

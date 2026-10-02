@@ -4,6 +4,7 @@ import com.necoarc.ityou.data.model.Article
 import com.necoarc.ityou.data.model.ArticleCategory
 import com.necoarc.ityou.data.model.ArticleDetail
 import com.necoarc.ityou.data.model.ContentBlock
+import com.necoarc.ityou.data.model.RelatedArticle
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -19,11 +20,6 @@ object HtmlParser {
 
     /**
      * 服务端频道 id 到本地分类的高置信度映射。
-     *
-     * 说明：早期版本完全依赖标题关键词推断分类（例如标题里必须出现 "手机"），
-     * 这会造成大量误判与漏判（"奇瑞集团 9 月汽车销售..." 能命中，但
-     * "华为 Pura 70 获 HarmonyOS 升级" 只能落到默认分类）。
-     * 现在优先使用服务端频道 id，仅当 id 未知时才回退到关键词推断。
      */
     private val CID_CATEGORY_MAP: Map<Int, ArticleCategory> = mapOf(
         185 to ArticleCategory.SMARTPHONE,
@@ -42,19 +38,8 @@ object HtmlParser {
         130 to ArticleCategory.DIGITAL
     )
 
-    /**
-     * 依据服务端频道 id 推断分类，未知频道返回 null（交由关键词推断兜底）。
-     */
     fun categoryFromCid(cid: Int): ArticleCategory? = CID_CATEGORY_MAP[cid]
 
-    /**
-     * 清洗图片地址。
-     *
-     * IT之家 缩略图形如 `.../1009170_240.jpg?r=1790870763077`，
-     * 其中 `r` 是每次请求都变化的时间戳缓存破坏参数。
-     * 如果原样交给 Coil，内存/磁盘缓存键每页都不同 → 反复解码、反复下载，
-     * 这是滚动卡顿的隐蔽来源之一。这里统一剔除该参数。
-     */
     fun cleanImageUrl(rawUrl: String?): String? {
         if (rawUrl.isNullOrBlank()) return null
         val url = rawUrl.trim()
@@ -72,10 +57,6 @@ object HtmlParser {
         return if (kept.isEmpty()) base else "$base?$kept"
     }
 
-    /**
-     * 根据文章标题与内容推断分类（仅在服务端频道 id 未知时使用）。
-     * 优先级：手机 > PC > 汽车 > 游戏 > AI > 数码 > 默认数码
-     */
     fun inferCategory(title: String, description: String = ""): ArticleCategory {
         val text = (title + " " + description).lowercase()
         return when {
@@ -103,11 +84,6 @@ object HtmlParser {
         }
     }
 
-    /**
-     * 解析移动端 API 返回的 JSON 列表数据（支持流式分页）。
-     *
-     * 返回的列表保持服务端顺序（新 → 旧），并已剔除导购与插播推广内容。
-     */
     fun parseJsonNews(jsonContent: String): List<Article> {
         val articles = mutableListOf<Article>()
         try {
@@ -135,13 +111,12 @@ object HtmlParser {
                 val wapUrl = item.optString("WapNewsUrl")
                 val cid = item.optInt("cid", -1)
 
-                // ---- 纯净度过滤：导购频道 / lapin 推广域名 / 广告标记 ----
+                // 过滤纯推广与广告
                 if (cid == CID_PROMOTION) continue
                 if (rawUrl.contains("lapin.ithome.com")) continue
                 if (item.optBoolean("isad", false)) continue
                 if (hasAdTip(item)) continue
 
-                // 部分条目 url 字段为空（例如直播/专题），此时从 WapNewsUrl 或 newsid 兜底构造
                 val fullUrl = when {
                     rawUrl.startsWith("http") -> rawUrl
                     rawUrl.startsWith("/") -> "https://www.ithome.com$rawUrl"
@@ -166,9 +141,7 @@ object HtmlParser {
                     )
                 )
             }
-        } catch (_: Exception) {
-            // 解析容错：单条数据异常不应导致整页失败
-        }
+        } catch (_: Exception) {}
         return articles
     }
 
@@ -184,16 +157,12 @@ object HtmlParser {
     private fun parseOrderTimestamp(rawOrderDate: String, format: SimpleDateFormat): Long {
         if (rawOrderDate.isBlank()) return System.currentTimeMillis()
         return try {
-            // orderdate 形如 2026-10-01T23:47:33.417，需去掉毫秒
             format.parse(rawOrderDate.substringBefore('.'))?.time ?: System.currentTimeMillis()
         } catch (_: Exception) {
             System.currentTimeMillis()
         }
     }
 
-    /**
-     * 解析 RSS XML 获取文章列表（接口不可用时的备用数据源）。
-     */
     fun parseRss(xmlContent: String): List<Article> {
         val articles = mutableListOf<Article>()
         try {
@@ -229,9 +198,7 @@ object HtmlParser {
                     )
                 }
             }
-        } catch (_: Exception) {
-            // 解析容错
-        }
+        } catch (_: Exception) {}
         return articles
     }
 
@@ -246,15 +213,14 @@ object HtmlParser {
                 val format = SimpleDateFormat(pattern, Locale.US)
                 val parsed = format.parse(pubDate)
                 if (parsed != null) return parsed.time
-            } catch (_: Exception) {
-                // 尝试下一种格式
-            }
+            } catch (_: Exception) {}
         }
         return System.currentTimeMillis()
     }
 
     /**
-     * 仿照 ReadYou 的 DOM 递归解析算法，将 HTML 正文精准转为 ContentBlock 原生树。
+     * 仿照 ReadYou 的 DOM 递归解析算法，将 HTML 正文精准转为 ContentBlock 原生树，
+     * 并解析底部「相关文章」列表。
      */
     fun parseArticleDetail(html: String, id: String, fallbackUrl: String = ""): ArticleDetail {
         val doc = Jsoup.parse(html)
@@ -273,6 +239,9 @@ object HtmlParser {
             parseElementRecursive(contentElement, blocks)
         }
 
+        // 解析移动端与 PC 端的相关文章列表
+        val relatedArticles = parseRelatedArticles(doc)
+
         return ArticleDetail(
             id = id,
             title = title,
@@ -280,8 +249,75 @@ object HtmlParser {
             publishTime = pubTime,
             source = "IT之家",
             contentBlocks = blocks,
+            relatedArticles = relatedArticles,
             originalUrl = fallbackUrl
         )
+    }
+
+    /**
+     * 解析页面中的「相关文章」区块。
+     * 兼容移动端 (`.relevant-news, .relevant-news-box, .placeholder`)
+     * 与 PC 网页端 (`.related_post, .list_3, #related_post`)。
+     */
+    private fun parseRelatedArticles(doc: Document): List<RelatedArticle> {
+        val results = mutableListOf<RelatedArticle>()
+
+        // 1. 移动版 m.ithome.com 样式
+        val mItems = doc.select(".relevant-news-box .placeholder, .relevant-news .placeholder")
+        for (item in mItems) {
+            val a = item.selectFirst("a") ?: continue
+            val href = a.attr("href").trim()
+            val title = item.selectFirst(".plc-title, p.title")?.text()?.trim().orEmpty()
+            if (title.isEmpty() || href.isEmpty()) continue
+
+            val rawImg = item.selectFirst("img")?.let { img ->
+                img.attr("data-original").ifEmpty { img.attr("src") }
+            }
+            val coverImg = cleanImageUrl(rawImg)
+            val pubTime = item.selectFirst(".plc-footer span, .plc-time")?.text()?.trim().orEmpty()
+
+            val relId = item.attr("data-order-newsId").ifEmpty {
+                href.substringAfterLast("/").substringBefore(".htm")
+            }
+
+            val fullUrl = if (href.startsWith("http")) href else "https://m.ithome.com$href"
+
+            results.add(
+                RelatedArticle(
+                    id = relId.ifEmpty { fullUrl.hashCode().toString() },
+                    title = title,
+                    url = fullUrl,
+                    coverImageUrl = coverImg,
+                    publishTime = pubTime
+                )
+            )
+        }
+
+        if (results.isNotEmpty()) return results
+
+        // 2. PC版 ithome.com 样式
+        val pcItems = doc.select(".related_post ul li, #related_post ul li")
+        for (item in pcItems) {
+            val a = item.selectFirst("a") ?: continue
+            val href = a.attr("href").trim()
+            val title = a.text().trim()
+            if (title.isEmpty() || href.isEmpty()) continue
+
+            val relId = href.substringAfterLast("/").substringBefore(".htm")
+            val fullUrl = if (href.startsWith("http")) href else "https://www.ithome.com$href"
+
+            results.add(
+                RelatedArticle(
+                    id = relId.ifEmpty { fullUrl.hashCode().toString() },
+                    title = title,
+                    url = fullUrl,
+                    coverImageUrl = null,
+                    publishTime = ""
+                )
+            )
+        }
+
+        return results
     }
 
     private fun parseElementRecursive(parent: Element, blocks: MutableList<ContentBlock>) {
@@ -292,7 +328,6 @@ object HtmlParser {
                     if (img != null) {
                         imageBlockOf(img)?.let(blocks::add)
                     } else {
-                        // 递归处理 <p> 内的嵌套元素（如 <strong>/<a>/<br>）
                         val text = child.text().trim()
                         if (text.isNotEmpty()) blocks.add(ContentBlock.Paragraph(text = text))
                     }
@@ -320,11 +355,6 @@ object HtmlParser {
         }
     }
 
-    /**
-     * 将 `<img>` 转为 Image 块，并尽力解析宽高以提前预留布局空间。
-     * IT之家 正文图片普遍带 `w` / `h` 属性。若缺少宽高，则 aspectRatio 为 null，
-     * 由 UI 侧做高度上限保护（避免 Coil 按原图尺寸解码超大图）。
-     */
     private fun imageBlockOf(img: Element): ContentBlock.Image? {
         val src = cleanImageUrl(
             img.attr("data-original").ifEmpty { img.attr("src") }

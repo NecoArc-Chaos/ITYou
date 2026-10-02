@@ -17,6 +17,8 @@ data class UserSettings(
     val dynamicColorEnabled: Boolean = true,
     val highQualityImage: Boolean = true,
     val backAnimation: BackAnimationType = BackAnimationType.SPRING_SLIDE,
+    /** 是否强制使用系统默认字体，若为 false 则优先使用自定义字体或工程内置默认字体（丸子黑体） */
+    val useSystemFont: Boolean = false,
     val customFontName: String? = null,
     val customFontPath: String? = null,
     val customFontSizeBytes: Long = 0L
@@ -49,6 +51,7 @@ class SettingsRepository private constructor(private val context: Context) {
             dynamicColorEnabled = prefs.getBoolean(KEY_DYNAMIC_COLOR, true),
             highQualityImage = prefs.getBoolean(KEY_HIGH_QUALITY_IMG, true),
             backAnimation = backAnim,
+            useSystemFont = prefs.getBoolean(KEY_USE_SYSTEM_FONT, false),
             customFontName = if (validFontPath != null) fontName else null,
             customFontPath = validFontPath,
             customFontSizeBytes = fontSize
@@ -68,6 +71,11 @@ class SettingsRepository private constructor(private val context: Context) {
     fun setBackAnimation(type: BackAnimationType) {
         prefs.edit().putString(KEY_BACK_ANIMATION, type.name).apply()
         _settings.value = _settings.value.copy(backAnimation = type)
+    }
+
+    fun setUseSystemFont(useSystem: Boolean) {
+        prefs.edit().putBoolean(KEY_USE_SYSTEM_FONT, useSystem).apply()
+        _settings.value = _settings.value.copy(useSystemFont = useSystem)
     }
 
     suspend fun installCustomFont(uri: Uri): Result<String> = withContext(Dispatchers.IO) {
@@ -96,12 +104,15 @@ class SettingsRepository private constructor(private val context: Context) {
             // 预验证字体是否能够被 Android 原生 Typeface 解析
             android.graphics.Typeface.createFromFile(targetFile)
 
+            // 安装自定义字体时，自动关闭“使用系统字体”，使新字体立即生效
             prefs.edit()
                 .putString(KEY_CUSTOM_FONT_PATH, targetFile.absolutePath)
                 .putString(KEY_CUSTOM_FONT_NAME, fileName)
+                .putBoolean(KEY_USE_SYSTEM_FONT, false)
                 .apply()
 
             _settings.value = _settings.value.copy(
+                useSystemFont = false,
                 customFontName = fileName,
                 customFontPath = targetFile.absolutePath,
                 customFontSizeBytes = targetFile.length()
@@ -130,6 +141,7 @@ class SettingsRepository private constructor(private val context: Context) {
         private const val KEY_DYNAMIC_COLOR = "key_dynamic_color"
         private const val KEY_HIGH_QUALITY_IMG = "key_high_quality_img"
         private const val KEY_BACK_ANIMATION = "key_back_animation"
+        private const val KEY_USE_SYSTEM_FONT = "key_use_system_font"
         private const val KEY_CUSTOM_FONT_PATH = "key_custom_font_path"
         private const val KEY_CUSTOM_FONT_NAME = "key_custom_font_name"
 

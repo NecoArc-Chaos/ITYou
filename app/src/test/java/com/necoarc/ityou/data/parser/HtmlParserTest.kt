@@ -79,7 +79,6 @@ class HtmlParserTest {
         assertEquals(ArticleCategory.PC, HtmlParser.categoryFromCid(100))
         assertEquals(ArticleCategory.GAME, HtmlParser.categoryFromCid(76))
         assertEquals(ArticleCategory.AI, HtmlParser.categoryFromCid(200))
-        // 未知频道交由关键词推断兜底
         assertNull(HtmlParser.categoryFromCid(9999))
     }
 
@@ -89,12 +88,10 @@ class HtmlParserTest {
             "https://img.ithome.com/a.jpg",
             HtmlParser.cleanImageUrl("https://img.ithome.com/a.jpg?r=1790870763077")
         )
-        // 其它业务参数需要保留
         assertEquals(
             "https://img.ithome.com/a.jpg?x-bce-process=image/format,f_auto",
             HtmlParser.cleanImageUrl("https://img.ithome.com/a.jpg?r=123&x-bce-process=image/format,f_auto")
         )
-        // 非 http 协议（例如 data:image）与空值统一返回 null
         assertNull(HtmlParser.cleanImageUrl("data:image/png;base64,AAAA"))
         assertNull(HtmlParser.cleanImageUrl(""))
         assertNull(HtmlParser.cleanImageUrl(null))
@@ -126,28 +123,21 @@ class HtmlParserTest {
         assertTrue(article.summary.contains("测试新闻摘要内容"))
         assertEquals("123", article.id)
         assertEquals(ArticleCategory.SMARTPHONE, article.category)
-        // RSS 的 pubDate 应被解析为可用于分页的时间戳
         assertTrue(article.orderTimestamp > 1_700_000_000_000L)
     }
 
     @Test
     fun inferCategory_matchesKeywordsAccurately() {
-        // 手机类：含 "手机"
         assertEquals(ArticleCategory.SMARTPHONE, HtmlParser.inferCategory("苹果发布全新 iPhone 旗舰手机"))
-        // PC类：含 "显卡"
         assertEquals(ArticleCategory.PC, HtmlParser.inferCategory("英伟达发布 RTX 5090 显卡与新架构处理器"))
-        // AI类：含 "大模型"（中文关键词，无歧义）
         assertEquals(ArticleCategory.AI, HtmlParser.inferCategory("DeepSeek 大模型新算法技术解析"))
-        // 汽车类：含 "su7"
         assertEquals(ArticleCategory.AUTOMOTIVE, HtmlParser.inferCategory("小米汽车 SU7 Ultra 交付进度更新"))
-        // 游戏类：含 "游戏"
         assertEquals(ArticleCategory.GAME, HtmlParser.inferCategory("Steam 新品节与国产 3A 游戏公布"))
-        // 数码类：含 "耳机"
         assertEquals(ArticleCategory.DIGITAL, HtmlParser.inferCategory("索尼发布全新无线降噪耳机"))
     }
 
     @Test
-    fun parseArticleDetail_extractsBlocksCorrectly() {
+    fun parseArticleDetail_extractsBlocksAndRelatedArticlesCorrectly() {
         val sampleHtml = """
             <!DOCTYPE html>
             <html>
@@ -161,6 +151,22 @@ class HtmlParserTest {
                     <p><img src="https://img.ithome.com/chart.png" w="989" h="793" /></p>
                     <blockquote>注意：本测试数据在室温 25 度下测得。</blockquote>
                 </div>
+                <div class="relevant-news">
+                    <div class="title">相关文章</div>
+                    <div class="relevant-news-box">
+                        <div class="placeholder one-img-plc" data-order-newsId="1008253">
+                            <a href="https://m.ithome.com/html/1008253.htm">
+                                <div class="plc-image">
+                                    <img data-original="https://img.ithome.com/rel1.jpg?r=999" />
+                                </div>
+                                <div class="plc-con">
+                                    <p class="plc-title">相关推荐：第一代架构演进之路</p>
+                                    <p class="plc-footer"><span>2026.09.29</span></p>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </body>
             </html>
         """.trimIndent()
@@ -171,11 +177,19 @@ class HtmlParserTest {
         assertEquals("测试作者", detail.author)
         assertEquals(4, detail.contentBlocks.size)
 
-        // 图片块应携带宽高比，供 UI 提前预留高度（消除正文回流）
         val image = detail.contentBlocks.filterIsInstance<ContentBlock.Image>().firstOrNull()
         assertTrue("正文中的图片应被解析为 Image 块", image != null)
         val ratio = image!!.aspectRatio
         assertTrue("图片宽高比应被解析", ratio != null)
         assertEquals(989f / 793f, ratio!!, 0.001f)
+
+        // 验证相关文章成功解析
+        assertEquals(1, detail.relatedArticles.size)
+        val rel = detail.relatedArticles[0]
+        assertEquals("1008253", rel.id)
+        assertEquals("相关推荐：第一代架构演进之路", rel.title)
+        assertEquals("https://m.ithome.com/html/1008253.htm", rel.url)
+        assertEquals("https://img.ithome.com/rel1.jpg", rel.coverImageUrl)
+        assertEquals("2026.09.29", rel.publishTime)
     }
 }

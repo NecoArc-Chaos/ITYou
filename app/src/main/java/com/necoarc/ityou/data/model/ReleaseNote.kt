@@ -34,10 +34,24 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v1.5.0",
+        releaseDate = "2026-10-02",
+        summary = "全面集成默认中文字体「丸子黑体」、补齐详情页相关文章流，精简顶栏交互。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FEATURE, "默认启用高质感圆润中文排版字体（Maruko Gothic / 丸子黑体）"),
+            ChangeItem(ChangeType.FEATURE, "设置中提供「使用系统字体」独立开关，随时自由回退系统原厂字型"),
+            ChangeItem(ChangeType.FEATURE, "文章详情页完美解析并展示「相关文章」卡片流，支持点选跳转深度阅读"),
+            ChangeItem(ChangeType.DESIGN, "移除首页未实装的顶栏搜索按钮，视觉更加精简纯粹"),
+            ChangeItem(ChangeType.FIX, "修复 R8 混淆因 Jsoup 缺失注解抛出的构建异常，打通 CI 正式 Release APK 产出"),
+            ChangeItem(ChangeType.IMPROVEMENT, "重构 README.md 文档，详述 MD3E 表现力设计与技术架构")
+        )
+    ),
+    ReleaseNote(
         version = "v1.4.0",
         releaseDate = "2026-10-02",
         summary = "以「可预测的滚动」为目标重构首页渲染管线：统一卡片几何、收敛重组范围、补齐 Release 构建与 Baseline Profile。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.IMPROVEMENT, "骨架屏与真实卡片共用同一套布局骨架与度量，彻底消除结构错位与高度跳变"),
             ChangeItem(ChangeType.IMPROVEMENT, "数据模型全面标注 @Immutable 并移除可变的 java.util.Date，卡片恢复「跳过重组」能力"),

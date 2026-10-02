@@ -1,5 +1,6 @@
 package com.necoarc.ityou.ui.theme
 
+import android.content.Context
 import android.graphics.Typeface
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
@@ -8,49 +9,71 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import java.io.File
 
-/**
- * 已解析字体家族缓存。
- *
- * `Typeface.createFromFile` 需要读盘并解析字体表，属于重量级操作。
- * 之前 `MainActivity` 与设置页都在 composition 中直接调用它，
- * 任何一次重组（例如切换任意开关、打字预览）都会在主线程重新解析一次字体。
- * 这里用「路径 + 文件大小 + 修改时间」做键缓存，既避免重复解析，
- * 也能在用户替换字体文件后自动失效。
- */
+/** 内置默认表现型字体的 Assets 路径 */
+const val BUNDLED_FONT_ASSET_PATH = "fonts/MarukoGothicCJKsc-Medium.ttf"
+const val BUNDLED_FONT_NAME = "丸子黑体 (Maruko Gothic)"
+
+/** 已解析字体家族缓存，避免主线程每帧或每次重组重复解析 Typeface */
 private val fontFamilyCache = mutableMapOf<String, FontFamily>()
 
 /**
- * 动态加载外部本地字体文件并封装为 Compose FontFamily。
- * 若路径无效或字体解析异常，安全回退到系统默认字体 [FontFamily.Default]。
+ * 解析并提供应用字体。
+ *
+ * 优先级逻辑：
+ * 1. 若 [useSystemFont] 为 true：用户显式指定使用系统字体，直接返回 [FontFamily.Default]。
+ * 2. 若用户安装了本地自定义字体文件且可用，优先返回用户安装的字体。
+ * 3. 默认情况下，加载随包内置的「丸子黑体」[BUNDLED_FONT_ASSET_PATH]，
+ *    使全应用默认呈现优雅圆润的 MD3 Expressive 视觉。
+ * 4. 出现任何异常安全回退到系统字体。
  */
-fun resolveFontFamily(fontFilePath: String?): FontFamily {
-    if (fontFilePath.isNullOrEmpty()) return FontFamily.Default
-
-    val file = File(fontFilePath)
-    if (!file.exists() || !file.canRead() || file.length() == 0L) return FontFamily.Default
-
-    val cacheKey = "$fontFilePath|${file.length()}|${file.lastModified()}"
-    synchronized(fontFamilyCache) {
-        fontFamilyCache[cacheKey]?.let { return it }
+fun resolveFontFamily(
+    context: Context,
+    useSystemFont: Boolean,
+    customFontPath: String?
+): FontFamily {
+    if (useSystemFont) {
+        return FontFamily.Default
     }
 
-    val resolved = try {
-        FontFamily(Typeface.createFromFile(file))
+    // 1. 若有用户外部安装字体
+    if (!customFontPath.isNullOrEmpty()) {
+        val file = File(customFontPath)
+        if (file.exists() && file.canRead() && file.length() > 0L) {
+            val cacheKey = "custom|$customFontPath|${file.length()}|${file.lastModified()}"
+            synchronized(fontFamilyCache) {
+                fontFamilyCache[cacheKey]?.let { return it }
+            }
+            try {
+                val tf = Typeface.createFromFile(file)
+                val family = FontFamily(tf)
+                synchronized(fontFamilyCache) {
+                    fontFamilyCache[cacheKey] = family
+                }
+                return family
+            } catch (_: Exception) {}
+        }
+    }
+
+    // 2. 默认加载工程内置资产字体：丸子黑体
+    val bundledCacheKey = "bundled|$BUNDLED_FONT_ASSET_PATH"
+    synchronized(fontFamilyCache) {
+        fontFamilyCache[bundledCacheKey]?.let { return it }
+    }
+
+    return try {
+        val tf = Typeface.createFromAsset(context.assets, BUNDLED_FONT_ASSET_PATH)
+        val family = FontFamily(tf)
+        synchronized(fontFamilyCache) {
+            fontFamilyCache[bundledCacheKey] = family
+        }
+        family
     } catch (_: Exception) {
         FontFamily.Default
     }
-
-    synchronized(fontFamilyCache) {
-        fontFamilyCache[cacheKey] = resolved
-    }
-    return resolved
 }
 
 /**
  * 针对中文阅读排版（仿 ReadYou 与 PixelPlayer）定制的 Expressive 排版系统。
- *
- * 注意：本函数会构造 13 个 TextStyle，属于「贵重对象」，
- * 必须在 Compose 侧用 `remember` 缓存（见 `ITYouTheme`），不要每次重组都调用。
  */
 fun getExpressiveTypography(fontFamily: FontFamily = FontFamily.Default): Typography {
     return Typography(
@@ -100,7 +123,7 @@ fun getExpressiveTypography(fontFamily: FontFamily = FontFamily.Default): Typogr
             fontFamily = fontFamily,
             fontWeight = FontWeight.Normal,
             fontSize = 16.sp,
-            lineHeight = 28.sp, // 扩大行高，适应中文长篇正文阅读
+            lineHeight = 28.sp,
             letterSpacing = 0.5.sp
         ),
         bodyMedium = TextStyle(

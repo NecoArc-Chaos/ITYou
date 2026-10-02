@@ -14,7 +14,7 @@ class ReleaseNoteTest {
 
         val latest = history.first()
         assertTrue("第一个版本应为最新版本", latest.isLatest)
-        assertEquals("最新版本号应为 v1.4.0", "v1.4.0", latest.version)
+        assertEquals("最新版本号应为 v1.5.0", "v1.5.0", latest.version)
         assertTrue("最新版本应当包含变更项目", latest.changes.isNotEmpty())
 
         history.drop(1).forEach { older ->

@@ -1,9 +1,7 @@
 package com.necoarc.ityou.ui.screens.settings
 
-import android.app.Application
 import android.net.Uri
-import androidx.compose.runtime.Immutable
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.necoarc.ityou.data.model.BackAnimationType
 import com.necoarc.ityou.data.repository.SettingsRepository
@@ -16,11 +14,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-@Immutable
 data class SettingsUiState(
     val dynamicColorEnabled: Boolean = true,
     val highQualityImage: Boolean = true,
     val backAnimation: BackAnimationType = BackAnimationType.SPRING_SLIDE,
+    val useSystemFont: Boolean = false,
     val customFontName: String? = null,
     val customFontPath: String? = null,
     val customFontSizeBytes: Long = 0L,
@@ -31,7 +29,8 @@ data class SettingsUiState(
 sealed interface SettingsUiIntent {
     data class SetDynamicColor(val enabled: Boolean) : SettingsUiIntent
     data class SetHighQualityImage(val enabled: Boolean) : SettingsUiIntent
-    data class SetBackAnimation(val type: BackAnimationType) : SettingsUiIntent
+    data class SetBackAnimation(val animation: BackAnimationType) : SettingsUiIntent
+    data class SetUseSystemFont(val enabled: Boolean) : SettingsUiIntent
     data class InstallCustomFont(val uri: Uri) : SettingsUiIntent
     data object ClearCustomFont : SettingsUiIntent
     data class SetTimelineSheetVisible(val visible: Boolean) : SettingsUiIntent
@@ -42,8 +41,13 @@ sealed interface SettingsUiEffect {
     data object HapticFeedback : SettingsUiEffect
 }
 
-class SettingsViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = SettingsRepository.getInstance(application)
+class SettingsViewModel(
+    private val repository: SettingsRepository = SettingsRepository.getInstance(
+        checkNotNull(com.necoarc.ityou.ITYouApplicationSingleton.appContext) {
+            "ITYouApplication context must be initialized"
+        }
+    )
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -59,6 +63,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         dynamicColorEnabled = settings.dynamicColorEnabled,
                         highQualityImage = settings.highQualityImage,
                         backAnimation = settings.backAnimation,
+                        useSystemFont = settings.useSystemFont,
                         customFontName = settings.customFontName,
                         customFontPath = settings.customFontPath,
                         customFontSizeBytes = settings.customFontSizeBytes
@@ -77,7 +82,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 repository.setHighQualityImage(intent.enabled)
             }
             is SettingsUiIntent.SetBackAnimation -> {
-                repository.setBackAnimation(intent.type)
+                repository.setBackAnimation(intent.animation)
+            }
+            is SettingsUiIntent.SetUseSystemFont -> {
+                repository.setUseSystemFont(intent.enabled)
             }
             is SettingsUiIntent.InstallCustomFont -> {
                 installFont(intent.uri)
@@ -85,7 +93,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             is SettingsUiIntent.ClearCustomFont -> {
                 repository.clearCustomFont()
                 viewModelScope.launch {
-                    _uiEffect.emit(SettingsUiEffect.ShowToast("已恢复系统默认字体"))
+                    _uiEffect.emit(SettingsUiEffect.ShowToast("已清除外部字体，恢复默认设置"))
                 }
             }
             is SettingsUiIntent.SetTimelineSheetVisible -> {
@@ -99,10 +107,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _uiState.update { it.copy(isInstallingFont = true) }
             val result = repository.installCustomFont(uri)
             _uiState.update { it.copy(isInstallingFont = false) }
-            result.onSuccess { fileName ->
-                _uiEffect.emit(SettingsUiEffect.ShowToast("已成功应用字体: $fileName"))
+            result.onSuccess { name ->
+                _uiEffect.emit(SettingsUiEffect.ShowToast("已成功应用字体：$name"))
             }.onFailure { error ->
-                _uiEffect.emit(SettingsUiEffect.ShowToast("字体安装失败: ${error.localizedMessage ?: "未知错误"}"))
+                _uiEffect.emit(SettingsUiEffect.ShowToast("字体安装失败：${error.localizedMessage ?: "未知错误"}"))
             }
         }
     }

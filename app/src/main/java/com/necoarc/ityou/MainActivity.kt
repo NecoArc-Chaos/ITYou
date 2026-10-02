@@ -48,10 +48,15 @@ class MainActivity : ComponentActivity() {
             // collectAsStateWithLifecycle：退到后台立即停止收集，避免回前台时集中重组
             val settings by settingsRepo.settings.collectAsStateWithLifecycle()
 
-            // 性能要点：resolveFontFamily 需要读盘并解析字体表，
-            // 必须 remember，否则任何一次重组都会在主线程重新解析字体。
-            val dynamicFontFamily = remember(settings.customFontPath) {
-                resolveFontFamily(settings.customFontPath)
+            // 性能要点：resolveFontFamily 需要读资产/文件并解析字体表，
+            // 必须 remember，避免每次普通重组都重复构建 Typeface。
+            // 默认加载工程内置资产（丸子黑体），同时支持用户选择系统字体或自定义字体。
+            val dynamicFontFamily = remember(settings.useSystemFont, settings.customFontPath) {
+                resolveFontFamily(
+                    context = context,
+                    useSystemFont = settings.useSystemFont,
+                    customFontPath = settings.customFontPath
+                )
             }
 
             ITYouTheme(
@@ -206,6 +211,12 @@ fun ITYouNavApp(backAnimation: BackAnimationType) {
                 previewPubTime = decodedPubTime,
                 onBackClick = {
                     navController.popBackStack()
+                },
+                onRelatedArticleClick = { relId, relUrl, relTitle, relPubTime ->
+                    val encodedRelUrl = URLEncoder.encode(relUrl, StandardCharsets.UTF_8.toString())
+                    val encodedRelTitle = URLEncoder.encode(relTitle, StandardCharsets.UTF_8.toString())
+                    val encodedRelPubTime = URLEncoder.encode(relPubTime, StandardCharsets.UTF_8.toString())
+                    navController.navigate("detail/$relId?url=$encodedRelUrl&title=$encodedRelTitle&author=IT之家&pubTime=$encodedRelPubTime")
                 }
             )
         }

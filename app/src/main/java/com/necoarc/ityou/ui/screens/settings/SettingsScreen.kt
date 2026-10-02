@@ -3,9 +3,7 @@ package com.necoarc.ityou.ui.screens.settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -61,6 +59,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +67,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.necoarc.ityou.data.model.BackAnimationType
 import com.necoarc.ityou.ui.components.VersionTimelineSheet
+import com.necoarc.ityou.ui.theme.BUNDLED_FONT_NAME
 import com.necoarc.ityou.ui.theme.ShapeCache
 import com.necoarc.ityou.ui.theme.resolveFontFamily
 import java.util.Locale
@@ -138,7 +138,7 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 1. 外观与主题
+            // 1. 外观与表现力
             SectionHeader(title = "外观与表现力", icon = Icons.Outlined.Palette)
 
             Card(
@@ -238,11 +238,11 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // 3. 本地自定义字体安装
+            // 3. 字体设置与自定义字体
             SectionHeader(
-                title = "自定义本地字体",
+                title = "字体排版与个性化",
                 icon = Icons.Outlined.FontDownload,
-                badge = "TTF / OTF"
+                badge = if (uiState.useSystemFont) "系统字体" else if (uiState.customFontPath != null) "外部字体" else "内置默认"
             )
 
             Card(
@@ -256,146 +256,130 @@ fun SettingsScreen(
                     modifier = Modifier.padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    if (uiState.customFontPath != null) {
-                        // 已安装字体状态卡片
-                        Surface(
-                            shape = ShapeCache.smooth16,
-                            color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = ShapeCache.smooth12,
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    modifier = Modifier.size(42.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.CheckCircle,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = uiState.customFontName ?: "已激活外部字体",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "大小：${formatFileSize(uiState.customFontSizeBytes)} · 全局已生效",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
-                                }
-                            }
+                    // “使用系统字体”独立开关
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "使用系统字体",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "开启后停用内置圆润字体，使用系统自带中文字型",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
                         }
+                        Switch(
+                            checked = uiState.useSystemFont,
+                            onCheckedChange = { viewModel.sendIntent(SettingsUiIntent.SetUseSystemFont(it)) }
+                        )
+                    }
 
-                        // 动态即时排版字型展示盒
-                        val customFamily = resolveFontFamily(uiState.customFontPath)
-                        Surface(
-                            shape = ShapeCache.smooth16,
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Text(
-                                    text = "字体实时排版预览",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "ITYou · 典雅纯净排版体验",
-                                    fontFamily = customFamily,
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "The quick brown fox jumps over the lazy dog. 0123456789",
-                                    fontFamily = customFamily,
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        // 操作按钮组
+                    // 当前生效字体状态卡片
+                    Surface(
+                        shape = ShapeCache.smooth16,
+                        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Button(
-                                onClick = {
-                                    fontPickerLauncher.launch(
-                                        arrayOf("font/*", "application/x-font-ttf", "application/x-font-opentype", "application/octet-stream", "*/*")
-                                    )
-                                },
-                                shape = ShapeCache.smoothPill,
-                                modifier = Modifier.weight(1f)
+                            Surface(
+                                shape = ShapeCache.smooth12,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(42.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.FileUpload,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(text = "更换字体", style = MaterialTheme.typography.labelLarge)
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
                             }
 
-                            OutlinedButton(
-                                onClick = {
-                                    viewModel.sendIntent(SettingsUiIntent.ClearCustomFont)
-                                },
-                                shape = ShapeCache.smoothPill
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.DeleteOutline,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(text = "恢复默认", style = MaterialTheme.typography.labelLarge)
-                            }
-                        }
-                    } else {
-                        // 未安装字体空状态
-                        Surface(
-                            shape = ShapeCache.smooth16,
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                val activeFontTitle = when {
+                                    uiState.useSystemFont -> "系统默认字体"
+                                    uiState.customFontPath != null -> uiState.customFontName ?: "已激活外部字体"
+                                    else -> BUNDLED_FONT_NAME
+                                }
+                                val activeFontSubtitle = when {
+                                    uiState.useSystemFont -> "跟随 Android 系统全局字体渲染"
+                                    uiState.customFontPath != null -> "大小：${formatFileSize(uiState.customFontSizeBytes)} · 外部文件"
+                                    else -> "内置 MD3 Expressive 圆润中文字型 · 默认激活"
+                                }
+
                                 Text(
-                                    text = "当前使用系统默认字体",
+                                    text = activeFontTitle,
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
+                                    fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "支持从本地存储安装 .ttf 或 .otf 格式字体文件，自动解析并渲染为全应用及正文排版字体。",
+                                    text = activeFontSubtitle,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                             }
                         }
+                    }
 
+                    // 动态即时排版字型展示盒
+                    val previewFontFamily: FontFamily = remember(uiState.useSystemFont, uiState.customFontPath) {
+                        resolveFontFamily(
+                            context = context,
+                            useSystemFont = uiState.useSystemFont,
+                            customFontPath = uiState.customFontPath
+                        )
+                    }
+
+                    Surface(
+                        shape = ShapeCache.smooth16,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "字体实时排版预览",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "ITYou · 典雅纯净排版体验",
+                                fontFamily = previewFontFamily,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "The quick brown fox jumps over the lazy dog. 0123456789",
+                                fontFamily = previewFontFamily,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // 操作按钮组
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                         Button(
                             onClick = {
                                 fontPickerLauncher.launch(
@@ -403,25 +387,43 @@ fun SettingsScreen(
                                 )
                             },
                             shape = ShapeCache.smoothPill,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.weight(1f),
                             enabled = !uiState.isInstallingFont
                         ) {
                             if (uiState.isInstallingFont) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
+                                    modifier = Modifier.size(16.dp),
                                     strokeWidth = 2.dp,
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("正在解析字体...", style = MaterialTheme.typography.labelLarge)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("正在安装...", style = MaterialTheme.typography.labelLarge)
                             } else {
                                 Icon(
                                     imageVector = Icons.Outlined.FileUpload,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("选择并安装本地字体 (.ttf / .otf)", style = MaterialTheme.typography.labelLarge)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (uiState.customFontPath != null) "更换外部字体" else "安装外部字体",
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
+                        }
+
+                        if (uiState.customFontPath != null) {
+                            OutlinedButton(
+                                onClick = { viewModel.sendIntent(SettingsUiIntent.ClearCustomFont) },
+                                shape = ShapeCache.smoothPill
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.DeleteOutline,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "移除外部", style = MaterialTheme.typography.labelLarge)
                             }
                         }
                     }
@@ -477,7 +479,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
-                        text = "基于 Android 14+ 预见式预测返回、自定义外部字体与纯 Compose 渲染构建的现代阅读器。",
+                        text = "基于 Android 14+ 预见式预测返回、内置丸子黑体与纯 Compose 渲染构建的现代科技新闻阅读器。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

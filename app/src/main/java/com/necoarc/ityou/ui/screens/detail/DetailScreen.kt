@@ -1,6 +1,7 @@
 package com.necoarc.ityou.ui.screens.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +32,8 @@ import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.OpenInBrowser
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -55,6 +58,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -62,6 +66,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.necoarc.ityou.data.model.ArticleDetail
 import com.necoarc.ityou.data.model.ContentBlock
+import com.necoarc.ityou.data.model.RelatedArticle
 import com.necoarc.ityou.ui.components.DetailSkeletonScreen
 import com.necoarc.ityou.ui.theme.Dimens
 import com.necoarc.ityou.ui.theme.ShapeCache
@@ -76,6 +81,7 @@ fun DetailScreen(
     previewPubTime: String = "",
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onRelatedArticleClick: (id: String, url: String, title: String, pubTime: String) -> Unit = { _, _, _, _ -> },
     viewModel: DetailViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -151,7 +157,8 @@ fun DetailScreen(
                 DetailContent(
                     detail = detail,
                     listState = listState,
-                    windowInsetsPadding = innerPadding
+                    windowInsetsPadding = innerPadding,
+                    onRelatedArticleClick = onRelatedArticleClick
                 )
             }
 
@@ -172,7 +179,8 @@ fun DetailScreen(
 private fun DetailContent(
     detail: ArticleDetail,
     listState: androidx.compose.foundation.lazy.LazyListState,
-    windowInsetsPadding: PaddingValues
+    windowInsetsPadding: PaddingValues,
+    onRelatedArticleClick: (id: String, url: String, title: String, pubTime: String) -> Unit
 ) {
     LazyColumn(
         state = listState,
@@ -231,11 +239,6 @@ private fun DetailContent(
         }
 
         // 3. 原生富文本排版流
-        //
-        // 性能说明：SelectionContainer 只包裹「文本类」块，而不是整个 LazyColumn。
-        // 用 SelectionContainer 包住长列表是官方文档明确提示的性能陷阱：
-        // 它需要为整棵子树注册选区，会削弱 LazyColumn 的按需组合与回收能力。
-        // 代价是跨段落选择文本不再可行（在单个段落内选择不受影响）。
         itemsIndexed(
             items = detail.contentBlocks,
             key = { index, _ -> "block_$index" },
@@ -273,37 +276,36 @@ private fun DetailContent(
                 }
 
                 is ContentBlock.BlockQuote -> {
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                shape = ShapeCache.smooth16,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                // IntrinsicSize.Min：让左侧 4dp 引用竖线始终与文字等高
-                                Row(
-                                    modifier = Modifier
-                                        .height(IntrinsicSize.Min)
-                                        .padding(14.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .width(4.dp)
-                                            .fillMaxHeight()
-                                            .background(
-                                                MaterialTheme.colorScheme.primary,
-                                                ShapeCache.smooth8
-                                            )
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = ShapeCache.smooth16,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .height(IntrinsicSize.Min)
+                                .padding(14.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(4.dp)
+                                    .fillMaxHeight()
+                                    .background(
+                                        MaterialTheme.colorScheme.primary,
+                                        ShapeCache.smooth8
                                     )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    SelectableText {
-                                        Text(
-                                            text = block.text,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            SelectableText {
+                                Text(
+                                    text = block.text,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
+                    }
+                }
 
                 is ContentBlock.CodeBlock -> {
                     Surface(
@@ -332,8 +334,108 @@ private fun DetailContent(
             }
         }
 
+        // 4. 相关文章区块
+        if (detail.relatedArticles.isNotEmpty()) {
+            item(key = "related_header", contentType = "related_header") {
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(4.dp)
+                            .height(18.dp)
+                            .background(MaterialTheme.colorScheme.primary, ShapeCache.smooth8)
+                    )
+                    Text(
+                        text = "相关文章",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+            }
+
+            itemsIndexed(
+                items = detail.relatedArticles,
+                key = { _, item -> "related_${item.id}" },
+                contentType = { _, _ -> "related_item" }
+            ) { _, related ->
+                RelatedArticleItem(
+                    item = related,
+                    onClick = {
+                        onRelatedArticleClick(
+                            related.id,
+                            related.url,
+                            related.title,
+                            related.publishTime
+                        )
+                    }
+                )
+            }
+        }
+
         item(key = "detail_bottom_spacer", contentType = "spacer") {
             Spacer(modifier = Modifier.height(48.dp))
+        }
+    }
+}
+
+@Composable
+private fun RelatedArticleItem(
+    item: RelatedArticle,
+    onClick: () -> Unit
+) {
+    Card(
+        shape = ShapeCache.smooth16,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(ShapeCache.smooth16)
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = if (item.coverImageUrl != null) 10.dp else 0.dp)
+            ) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (item.publishTime.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = item.publishTime,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+
+            item.coverImageUrl?.let { imageUrl ->
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(width = 72.dp, height = 54.dp)
+                        .clip(ShapeCache.smooth12)
+                )
+            }
         }
     }
 }
@@ -347,14 +449,6 @@ private fun SelectableText(content: @Composable () -> Unit) {
     }
 }
 
-/**
- * 正文图片块。
- *
- * 关键优化：IT之家 正文 `<img>` 带 `w` / `h` 属性，解析后可以**提前确定宽高比**，
- * 于是图片在加载前就占好位，滚动时不会出现「图片加载完成后整篇正文下移」的回流；
- * 对无法确定宽高比的图片，则给出高度上限，避免 Coil 按原图尺寸解码超大图
- * （这是详情页大量图片滚动时卡顿与内存抖动的主要来源）。
- */
 @Composable
 private fun ArticleImageBlock(block: ContentBlock.Image) {
     Column(

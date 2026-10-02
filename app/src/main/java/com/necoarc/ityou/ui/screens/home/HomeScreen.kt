@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -67,14 +66,10 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = viewModel()
 ) {
-    // collectAsStateWithLifecycle：退到后台即停止收集，避免回到前台时的一次性整屏重组
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
-    // 触底预加载：
-    // 使用 snapshotFlow 而非在组合体中读取 layoutInfo —— 后者会让组合在每一帧滚动时
-    // 都被 layoutInfo 的写入所影响；snapshotFlow 完全运行在组合之外。
-    // 以「最后一个可见项的下标」作为触发源，可以保证每滑动一屏只触发一次，不会空转。
+    // 触底预加载：使用 snapshotFlow 收集尾部可见项，避免每帧读取 layoutInfo 触发额外重组
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }
             .distinctUntilChanged()
@@ -140,9 +135,6 @@ private fun HomeTopBar(
         actions = {
             IconButton(onClick = onRefreshClick) {
                 Icon(imageVector = Icons.Outlined.Refresh, contentDescription = "刷新")
-            }
-            IconButton(onClick = {}) {
-                Icon(imageVector = Icons.Outlined.Search, contentDescription = "搜索")
             }
             IconButton(onClick = onSettingsClick) {
                 Icon(imageVector = Icons.Outlined.Settings, contentDescription = "设置")
@@ -371,9 +363,6 @@ private fun EmptyFooter() {
 
 /**
  * 首屏加载失败状态。
- *
- * 说明：旧实现在任何网络异常时都会塞入一段硬编码的「示例新闻」，
- * 用户无法分辨看到的到底是真实资讯还是兜底文本。这里改为显式错误 + 可重试。
  */
 @Composable
 private fun HomeErrorState(

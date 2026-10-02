@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#121316</color>
+    <!-- 冷启动窗口背景：与 Compose 主题底色接近，避免启动首帧白闪 -->
+    <color name="window_background">#FFFBF8FA</color>
 </resources>

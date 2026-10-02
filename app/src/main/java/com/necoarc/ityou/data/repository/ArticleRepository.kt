@@ -1,106 +1,102 @@
 package com.necoarc.ityou.data.repository
 
+import androidx.compose.runtime.Immutable
 import com.necoarc.ityou.data.model.Article
 import com.necoarc.ityou.data.model.ArticleCategory
 import com.necoarc.ityou.data.model.ArticleDetail
-import com.necoarc.ityou.data.model.ContentBlock
+import com.necoarc.ityou.data.model.ArticlePage
 import com.necoarc.ityou.data.parser.HtmlParser
+import com.necoarc.ityou.data.remote.NetworkClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.util.concurrent.TimeUnit
+import java.io.IOException
+import kotlin.coroutines.cancellation.CancellationException
 
-class ArticleRepository(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .build()
-) {
+/**
+ * 服务端「一页原始数据」（尚未做分类过滤）。
+ *
+ * @param articles 原始文章（新 → 旧）
+ * @param nextCursor 下一页游标 = 本页最旧一条的时间戳
+ * @param hasMore 服务端是否还有更多
+ */
+@Immutable
+data class RawNewsPage(
+    val articles: List<Article> = emptyList(),
+    val nextCursor: Long = 0L,
+    val hasMore: Boolean = true
+)
+
+class ArticleRepository {
+
+    private val client get() = NetworkClient.client
 
     /**
-     * 获取文章列表：
-     * 支持分页瀑布流加载（若指定 lastOrderTimestamp 则向上继续翻页拉取历史文章）
+     * 拉取「某个分类的下一个页面」。
+     *
+     * 关键设计（修复历史缺陷）：
+     * 分类过滤是在客户端完成的。早期实现把游标取自 *过滤后* 的最后一条，
+     * 一旦某一整页都不属于当前分类，游标就不会前进 ——
+     * 表现为「某些分类只能刷出很少文章，而且再也翻不动」。
+     *
+     * 现在游标永远取自 **服务端原始页**，并在单次调用内部连续翻页，
+     * 直到收集到足够多的匹配项或数据源耗尽。
+     *
+     * @param cursor 0 表示从最新开始；否则为上一页返回的 [ArticlePage.nextCursor]
      */
-    suspend fun getArticles(
+    suspend fun getArticlePage(
         category: ArticleCategory = ArticleCategory.ALL,
-        lastOrderTimestamp: Long = 0L
-    ): Result<List<Article>> = withContext(Dispatchers.IO) {
-        // 1. 尝试从移动端无限分页接口拉取
-        val apiArticles = try {
-            val url = if (lastOrderTimestamp > 0L) {
-                "https://m.ithome.com/api/news/newslistpageget?ot=$lastOrderTimestamp"
-            } else {
-                "https://m.ithome.com/api/news/newslistpageget"
-            }
-            val request = Request.Builder()
-                .url(url)
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) ITYou-App/1.2")
-                .header("Referer", "https://m.ithome.com/")
-                .build()
+        cursor: Long = 0L
+    ): Result<ArticlePage> {
+        val isFirstPage = cursor <= 0L
+        val maxPages = if (category == ArticleCategory.ALL) 1 else MAX_SUB_PAGES
+        val minMatches = if (category == ArticleCategory.ALL) 0 else MIN_CATEGORY_MATCHES
 
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) {
-                val json = response.body?.string().orEmpty()
-                HtmlParser.parseJsonNews(json)
-            } else {
-                emptyList()
-            }
-        } catch (_: Exception) {
-            emptyList()
+        val apiResult: Result<ArticlePage> = try {
+            collectCategoryPage(
+                category = category,
+                startCursor = cursor,
+                maxPages = maxPages,
+                minMatches = minMatches,
+                fetchPage = ::fetchRawPageFromApi
+            )
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (throwable: Throwable) {
+            Result.failure(throwable)
         }
 
-        if (apiArticles.isNotEmpty()) {
-            val filtered = if (category == ArticleCategory.ALL) {
-                apiArticles
-            } else {
-                apiArticles.filter { it.category == category }
-            }
-            return@withContext Result.success(filtered)
+        apiResult.getOrNull()?.let { page ->
+            // 后续页即使为空也是「正常的流末尾」，直接返回
+            if (page.articles.isNotEmpty() || !isFirstPage) return Result.success(page)
         }
 
-        // 2. 若 API 拉取失败且为第一页，回退到标准 RSS 源
-        if (lastOrderTimestamp == 0L) {
-            val rssArticles = try {
-                val request = Request.Builder()
-                    .url("https://www.ithome.com/rss/")
-                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) ITYou-App/1.2")
-                    .build()
+        if (!isFirstPage) return apiResult
 
-                val response = client.newCall(request).execute()
-                if (response.isSuccessful) {
-                    val xml = response.body?.string().orEmpty()
-                    HtmlParser.parseRss(xml)
-                } else {
-                    emptyList()
-                }
-            } catch (_: Exception) {
-                emptyList()
-            }
-
-            if (rssArticles.isNotEmpty()) {
-                val filtered = if (category == ArticleCategory.ALL) {
-                    rssArticles
-                } else {
-                    rssArticles.filter { it.category == category }
-                }
-                return@withContext Result.success(filtered)
-            }
+        // 首页且接口无内容 → 回退到 RSS（RSS 不具备分页能力）
+        val rssPage = try {
+            fetchRawPageFromRss(category)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Throwable) {
+            null
         }
+        if (rssPage != null && rssPage.articles.isNotEmpty()) return Result.success(rssPage)
 
-        // 3. 网络异常时的兜底样本数据
-        val fallback = if (lastOrderTimestamp == 0L) {
-            val raw = getFallbackArticles()
-            if (category == ArticleCategory.ALL) raw else raw.filter { it.category == category }
+        val apiFailure = apiResult.exceptionOrNull()
+        return if (apiFailure != null) {
+            Result.failure(apiFailure)
         } else {
-            emptyList()
+            Result.failure(IOException("数据源暂无可用内容，请稍后重试"))
         }
-
-        Result.success(fallback)
     }
 
     /**
-     * 获取文章详情
+     * 拉取文章详情。
+     *
+     * 注意：早期实现在网络失败时会返回一段**硬编码的示例正文**并当作真实内容展示，
+     * 这会让「加载失败」伪装成「加载成功」，也会掩盖真实的解析问题。
+     * 现在统一返回失败，由 UI 呈现可重试的错误状态。
      */
     suspend fun getArticleDetail(
         articleId: String,
@@ -109,137 +105,170 @@ class ArticleRepository(
         previewAuthor: String = "",
         previewPubTime: String = ""
     ): Result<ArticleDetail> = withContext(Dispatchers.IO) {
+        if (url.isBlank()) {
+            return@withContext Result.failure(IOException("缺少文章链接"))
+        }
         try {
-            if (url.isNotEmpty()) {
-                val request = Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) ITYou-App/1.2")
-                    .build()
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", NetworkClient.USER_AGENT)
+                .build()
 
-                val response = client.newCall(request).execute()
-                if (response.isSuccessful) {
-                    val html = response.body?.string().orEmpty()
-                    val detail = HtmlParser.parseArticleDetail(html, articleId, url)
-                    if (detail.contentBlocks.isNotEmpty()) {
-                        return@withContext Result.success(detail)
-                    }
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
                 }
+                val html = response.body?.string().orEmpty()
+                val detail = HtmlParser.parseArticleDetail(html, articleId, url)
+
+                if (detail.contentBlocks.isEmpty()) {
+                    // 抓取成功但正文解析为空：多半是页面结构变更，显式报错而不是伪造正文
+                    return@withContext Result.failure(IOException("正文解析为空，页面结构可能已变更"))
+                }
+
+                Result.success(
+                    detail.copy(
+                        title = detail.title.takeIf { it.isNotBlank() && it != "无标题" }
+                            ?: previewTitle.ifBlank { detail.title },
+                        author = previewAuthor.ifBlank { detail.author },
+                        publishTime = previewPubTime.ifBlank { detail.publishTime }
+                    )
+                )
             }
-            Result.success(getFallbackDetail(articleId, previewTitle, previewAuthor, previewPubTime))
-        } catch (_: Exception) {
-            Result.success(getFallbackDetail(articleId, previewTitle, previewAuthor, previewPubTime))
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
-    private fun getFallbackArticles(): List<Article> {
-        return listOf(
-            Article(
-                id = "800101",
-                title = "谷歌正式推送 Android 16 预览版：Material 3 Expressive 带来大圆角与更灵动的动效体验",
-                summary = "今天谷歌向全球开发者推送了全新的 Android 16 开发者预览版本，不仅带来了底层性能提升，还全面落地了 Material 3 Expressive 设计规范。",
-                coverImageUrl = "https://picsum.photos/seed/android16/600/400",
-                author = "IT之家 (远洋)",
-                publishTime = "10分钟前",
-                category = ArticleCategory.DIGITAL,
-                commentCount = 142
-            ),
-            Article(
-                id = "800102",
-                title = "英伟达发布全新架构 RTX 50 系列显卡：光线追踪性能翻倍，功耗表现抢眼",
-                summary = "黄仁勋在最新发布会上正式揭晓了 RTX 50 系列显卡，采用台积电定制先进工艺制程，能效比取得重大突破。",
-                coverImageUrl = "https://picsum.photos/seed/rtx50/600/400",
-                author = "IT之家 (孤城)",
-                publishTime = "42分钟前",
-                category = ArticleCategory.PC,
-                commentCount = 388
-            ),
-            Article(
-                id = "800103",
-                title = "DeepSeek 发布新一代开源推理大模型：多项基准测试超越前代，支持手机本地运行",
-                summary = "国内知名开源人工智能团队今日开源了全新推理架构模型，模型体积缩减 60%，在移动端 NPU 上可以实现高帧率推理。",
-                coverImageUrl = "https://picsum.photos/seed/deepseek/600/400",
-                author = "IT之家 (刺猬)",
-                publishTime = "1小时前",
-                category = ArticleCategory.AI,
-                commentCount = 512
-            ),
-            Article(
-                id = "800104",
-                title = "苹果 iOS 19 首批爆料出炉：Siri 迎来全面重构，UI 视觉语言进一步圆润化",
-                summary = "知名科技博主透露，iOS 19 将彻底革新系统视觉，采用更大更醒目的微件系统，与 Apple Intelligence 进行深度绑定。",
-                coverImageUrl = "https://picsum.photos/seed/apple/600/400",
-                author = "IT之家 (玄度)",
-                publishTime = "2小时前",
-                category = ArticleCategory.SMARTPHONE,
-                commentCount = 205
-            ),
-            Article(
-                id = "800105",
-                title = "小米汽车 SU7 Ultra 量产版正式下线：纽北赛道圈速实测即将揭晓",
-                summary = "小米汽车官方今日宣布，定位巅峰性能科技轿车的 SU7 Ultra 正式迎来首批量产车下线，三电机系统最大马力超 1500 匹。",
-                coverImageUrl = "https://picsum.photos/seed/su7ultra/600/400",
-                author = "IT之家 (小智)",
-                publishTime = "3小时前",
-                category = ArticleCategory.AUTOMOTIVE,
-                commentCount = 621
-            ),
-            Article(
-                id = "800106",
-                title = "《黑神话：悟空》全新 DLC 预告曝光：新地图新妖王，计划明春上线",
-                summary = "游戏科学在最新开发者访谈中首次披露了大型内容扩展包的进展，并展示了多段令人惊叹的全新实机场景。",
-                coverImageUrl = "https://picsum.photos/seed/wukong/600/400",
-                author = "IT之家 (暴风)",
-                publishTime = "4小时前",
-                category = ArticleCategory.GAME,
-                commentCount = 430
-            )
+    // ------------------------------------------------------------------
+    // 数据抓取（全部在 IO 线程执行）
+    // ------------------------------------------------------------------
+
+    private suspend fun fetchRawPageFromApi(cursor: Long): RawNewsPage = withContext(Dispatchers.IO) {
+        val url = if (cursor > 0L) "$NEWS_LIST_API?ot=$cursor" else NEWS_LIST_API
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", NetworkClient.USER_AGENT)
+            .header("Referer", "https://m.ithome.com/")
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+            val json = response.body?.string().orEmpty()
+            val articles = HtmlParser.parseJsonNews(json)
+            rawPageOf(articles)
+        }
+    }
+
+    private suspend fun fetchRawPageFromRss(category: ArticleCategory): ArticlePage =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(RSS_FEED)
+                .header("User-Agent", NetworkClient.USER_AGENT)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+                val xml = response.body?.string().orEmpty()
+                val all = HtmlParser.parseRss(xml)
+                val filtered = if (category == ArticleCategory.ALL) {
+                    all
+                } else {
+                    all.filter { it.category == category }
+                }
+                // RSS 无分页能力
+                ArticlePage(articles = filtered, nextCursor = 0L, hasMore = false)
+            }
+        }
+
+    private fun rawPageOf(articles: List<Article>): RawNewsPage {
+        if (articles.isEmpty()) {
+            return RawNewsPage(articles = emptyList(), nextCursor = 0L, hasMore = false)
+        }
+        // 接口按时间倒序返回，最后一条即本页最旧
+        val oldest = articles.last().orderTimestamp
+        return RawNewsPage(articles = articles, nextCursor = oldest, hasMore = true)
+    }
+
+    companion object {
+        private const val NEWS_LIST_API = "https://m.ithome.com/api/news/newslistpageget"
+        private const val RSS_FEED = "https://www.ithome.com/rss/"
+
+        /** 单次「加载更多」最多连续请求的原始页数（防止分类过于稀疏时长时间空转）。 */
+        internal const val MAX_SUB_PAGES = 4
+
+        /** 单次「加载更多」希望收集到的分类匹配条目数。 */
+        internal const val MIN_CATEGORY_MATCHES = 12
+    }
+}
+
+/**
+ * 分类感知的分页收集器（纯函数，便于单元测试）。
+ *
+ * 行为约定：
+ * 1. 游标始终取自服务端原始页的 [RawNewsPage.nextCursor]，
+ *    因此「整页都不匹配当前分类」时游标依旧前进，不会卡住。
+ * 2. 达到 [maxPages]、收集到 [minMatches] 条匹配项，或数据源耗尽即停止。
+ * 3. 首页抓取失败 → [Result.failure]；后续页失败 → 返回已成功收集的部分结果。
+ */
+internal suspend fun collectCategoryPage(
+    category: ArticleCategory,
+    startCursor: Long,
+    maxPages: Int,
+    minMatches: Int,
+    fetchPage: suspend (cursor: Long) -> RawNewsPage
+): Result<ArticlePage> {
+    val matched = LinkedHashMap<String, Article>()
+    var cursor = startCursor
+    var pages = 0
+    var hasMore = true
+    var anySuccess = false
+
+    while (pages < maxPages) {
+        val raw = try {
+            fetchPage(cursor)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (throwable: Throwable) {
+            if (!anySuccess) return Result.failure(throwable)
+            // 已有部分结果：返回已收集内容，游标保持在上次成功处以便重试
+            break
+        }
+        anySuccess = true
+        pages++
+
+        if (raw.articles.isEmpty()) {
+            hasMore = false
+            break
+        }
+
+        val nextCursor = raw.nextCursor.takeIf { it > 0L } ?: raw.articles.last().orderTimestamp
+        // 游标没有前进说明服务端数据异常，停止以避免死循环
+        if (nextCursor == cursor) {
+            hasMore = raw.hasMore
+            break
+        }
+        cursor = nextCursor
+        hasMore = raw.hasMore
+
+        raw.articles.forEach { article ->
+            if (category == ArticleCategory.ALL || article.category == category) {
+                matched[article.id] = article
+            }
+        }
+
+        if (!hasMore) break
+        if (category == ArticleCategory.ALL) break
+        if (minMatches > 0 && matched.size >= minMatches) break
+    }
+
+    return Result.success(
+        ArticlePage(
+            articles = matched.values.toList(),
+            nextCursor = cursor,
+            hasMore = hasMore
         )
-    }
-
-    private fun getFallbackDetail(
-        articleId: String,
-        previewTitle: String,
-        previewAuthor: String,
-        previewPubTime: String
-    ): ArticleDetail {
-        val article = getFallbackArticles().find { it.id == articleId }
-        val title = when {
-            previewTitle.isNotEmpty() -> previewTitle
-            article != null -> article.title
-            else -> "文章资讯详情"
-        }
-        val author = when {
-            previewAuthor.isNotEmpty() -> previewAuthor
-            article != null -> article.author
-            else -> "IT之家"
-        }
-        val pubTime = when {
-            previewPubTime.isNotEmpty() -> previewPubTime
-            article != null -> article.publishTime
-            else -> "刚刚"
-        }
-        val summary = article?.summary ?: "IT之家科技快讯报道，关注最新行业前沿资讯与数码产品发布动向。"
-
-        return ArticleDetail(
-            id = articleId,
-            title = title,
-            author = author,
-            publishTime = pubTime,
-            source = "IT之家",
-            contentBlocks = listOf(
-                ContentBlock.Paragraph(summary),
-                ContentBlock.Heading("核心亮点与背景速览", level = 2),
-                ContentBlock.Paragraph("根据行业内最新动向与官方权威披露，本项科技进展不仅在性能和易用性上实现了跨越式升级，也为后续的技术生态演进奠定了坚实基础。"),
-                ContentBlock.BlockQuote("技术创新源于对极致用户体验的不懈追求，每一次架构革新都是向未来迈出的重要一步。"),
-                ContentBlock.Image(
-                    url = article?.coverImageUrl ?: "https://picsum.photos/seed/$articleId/800/500",
-                    caption = "现场实拍与规格参数细节展示"
-                ),
-                ContentBlock.Heading("行业评价与后续展望", level = 2),
-                ContentBlock.Paragraph("业内分析人士指出，随着供应链效率与软硬件协同调优能力的持续增强，该系列产品将在接下来的市场竞争中占据显著优势，推动整个产业生态向更高能效比方向发展。")
-            ),
-            commentCount = article?.commentCount ?: 88,
-            originalUrl = article?.url ?: "https://www.ithome.com"
-        )
-    }
+    )
 }

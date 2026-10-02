@@ -1,3 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.ITYou" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+      Compose 应用仅需要窗口级主题（用于冷启动首帧与系统栏适配），
+      颜色与排版全部由 Compose 侧的 MD3 Expressive 主题接管。
+    -->
+    <style name="Theme.ITYou" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
 </resources>

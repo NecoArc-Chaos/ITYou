@@ -31,9 +31,27 @@ jobs:
           gradle-version: 8.9
           cache-read-only: false
 
-      - name: Run Unit Tests & Build Debug APK
+      - name: Run Unit Tests
         run: |
-          gradle testDebugUnitTest assembleDebug \
+          gradle testDebugUnitTest \
+            --parallel \
+            --build-cache \
+            --max-workers=4 \
+            --no-daemon \
+            --stacktrace
+
+      - name: Build Debug APK
+        run: |
+          gradle assembleDebug \
+            --parallel \
+            --build-cache \
+            --max-workers=4 \
+            --no-daemon \
+            --stacktrace
+
+      - name: Build Release APK (R8 + Baseline Profile)
+        run: |
+          gradle assembleRelease \
             --parallel \
             --build-cache \
             --max-workers=4 \
@@ -46,4 +64,12 @@ jobs:
         with:
           name: ITYou-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 7
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ITYou-release-apk
+          path: app/build/outputs/apk/release/*.apk
           retention-days: 7

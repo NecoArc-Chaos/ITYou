@@ -5,8 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -17,12 +15,12 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
-import androidx.navigation.NavBackStackEntry
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -45,11 +43,16 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val context = LocalContext.current
-            val settingsRepo = SettingsRepository.getInstance(context)
-            val settings by settingsRepo.settings.collectAsState()
+            val settingsRepo = remember(context) { SettingsRepository.getInstance(context) }
 
-            // 动态解析本地安装字体文件，若无则回退系统默认
-            val dynamicFontFamily = resolveFontFamily(settings.customFontPath)
+            // collectAsStateWithLifecycle：退到后台立即停止收集，避免回前台时集中重组
+            val settings by settingsRepo.settings.collectAsStateWithLifecycle()
+
+            // 性能要点：resolveFontFamily 需要读盘并解析字体表，
+            // 必须 remember，否则任何一次重组都会在主线程重新解析字体。
+            val dynamicFontFamily = remember(settings.customFontPath) {
+                resolveFontFamily(settings.customFontPath)
+            }
 
             ITYouTheme(
                 dynamicColor = settings.dynamicColorEnabled,

@@ -34,14 +34,30 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v1.4.0",
+        releaseDate = "2026-10-02",
+        summary = "以「可预测的滚动」为目标重构首页渲染管线：统一卡片几何、收敛重组范围、补齐 Release 构建与 Baseline Profile。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.IMPROVEMENT, "骨架屏与真实卡片共用同一套布局骨架与度量，彻底消除结构错位与高度跳变"),
+            ChangeItem(ChangeType.IMPROVEMENT, "数据模型全面标注 @Immutable 并移除可变的 java.util.Date，卡片恢复「跳过重组」能力"),
+            ChangeItem(ChangeType.IMPROVEMENT, "Shimmer 由约 50 个独立动画时钟收敛为 1 个，且在绘制阶段读取进度，不再触发重组"),
+            ChangeItem(ChangeType.IMPROVEMENT, "LazyColumn 补齐 key 与 contentType，开启条目组合槽位复用"),
+            ChangeItem(ChangeType.IMPROVEMENT, "Coil 关闭 crossfade、忽略缓存头、复用同一 OkHttp 连接池；缩略图去除时间戳缓存破坏参数"),
+            ChangeItem(ChangeType.FEATURE, "新增 release 变体（R8 + 资源压缩 + Baseline Profile）并由 CI 产出，用于真实性能验证"),
+            ChangeItem(ChangeType.FIX, "修复分类分页游标取自过滤后结果导致「某些分类翻不动」的问题"),
+            ChangeItem(ChangeType.FIX, "移除网络失败时注入硬编码示例新闻的行为，改为显式错误与重试"),
+            ChangeItem(ChangeType.IMPROVEMENT, "详情页正文图片按 w/h 预留宽高比，消除图片加载后的正文回流")
+        )
+    ),
+    ReleaseNote(
         version = "v1.3.1",
         releaseDate = "2026-10-02",
         summary = "修复 JVM 单元测试环境下的 JSON 解析依赖桩问题，版本号自动递增。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FIX, "补充 testImplementation 真实 org.json 引擎，修复单元测试桩方法未模拟报错"),
-            ChangeItem(ChangeType.IMPROVEMENT, "配置 unitTests.isReturnDefaultValues 提升测试容错稳定性"),
-            ChangeItem(ChangeType.IMPROVEMENT, "递增构建版本号至 v1.3.1 (versionCode = 5)")
+            ChangeItem(ChangeType.IMPROVEMENT, "配置 unitTests.isReturnDefaultValues 提升测试容错稳定性")
         )
     ),
     ReleaseNote(

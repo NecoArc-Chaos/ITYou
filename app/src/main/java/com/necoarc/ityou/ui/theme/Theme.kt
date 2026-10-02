@@ -8,6 +8,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 
@@ -60,18 +61,27 @@ fun ITYouTheme(
     fontFamily: FontFamily = FontFamily.Default,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    val context = LocalContext.current
+    val supportsDynamicColor = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+    // 性能要点：MaterialTheme 的 colorScheme / typography 会被全应用所有 Text 读取。
+    // 如果每次重组都新建实例，`MaterialTheme.typography` 的引用就会变化，
+    // 进而让所有 Text 失去「跳过重组」能力（等于每次主题重组都全屏重排一次文本）。
+    val colorScheme = remember(darkTheme, dynamicColor, supportsDynamicColor, context) {
+        when {
+            dynamicColor && supportsDynamicColor ->
+                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+
+            darkTheme -> DarkColorScheme
+            else -> LightColorScheme
         }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
     }
+
+    val typography = remember(fontFamily) { getExpressiveTypography(fontFamily) }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = getExpressiveTypography(fontFamily),
+        typography = typography,
         shapes = ExpressiveShapes,
         content = content
     )

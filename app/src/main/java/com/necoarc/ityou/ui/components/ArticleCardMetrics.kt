@@ -10,7 +10,6 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.isSp
 import com.necoarc.ityou.ui.theme.Dimens
 
 /** 骨架屏线条高度占行高的比例（剩余比例即为行间距）。 */
@@ -98,12 +97,18 @@ fun articleCardMetrics(
 
 /**
  * sp → dp 换算：`sp → px → dp`。
- * 结果只随系统字号缩放（fontScale）变化，与屏幕像素密度无关。
+ *
+ * `TextUnit.toPx()` 与 `Float.toDp()` 都是 [Density] 的成员扩展函数，
+ * 因此这里必须声明为 Density 的扩展才能调用（本文件顶部已 import Density）。
+ *
+ * 该换算的语义非常明确：`toPx()` = `value * fontScale * density`，
+ * `toDp()` = `px / density`，两者相消后**只受系统字号缩放（fontScale）影响**。
+ * 这一点是「骨架屏与真实卡片在任何屏幕上都严格对齐」的数学基础。
  */
 internal fun Density.textUnitToDp(unit: TextUnit): Dp? {
     if (!unit.isSp || unit.value <= 0f) return null
     return try {
-        with(this) { unit.toPx().toDp() }
+        unit.toPx().toDp()
     } catch (_: Exception) {
         null
     }

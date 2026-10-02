@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -259,8 +258,9 @@ fun HomeSkeletonScreen(
  * 分类胶囊占位。
  *
  * 这里直接渲染**真实禁用状态**的 FilterChip：
- * 分类名在骨架阶段就是已知的，用真实控件意味着宽度、高度、圆角、
- * 字体与真实分类行 100% 一致（旧的固定 64x32 占位永远无法对齐）。
+ * 分类名在骨架阶段就是已知的，使用真实控件意味着宽度、高度、圆角与字体
+ * 与真实分类行完全一致（旧的「固定 64x32 圆角块」永远无法对齐真实胶囊宽度）。
+ * 同时采用默认的禁用配色，天然呈现柔和的占位观感，无需额外覆盖颜色。
  */
 @Composable
 private fun SkeletonCategoryRow() {
@@ -279,11 +279,7 @@ private fun SkeletonCategoryRow() {
                         style = MaterialTheme.typography.labelLarge
                     )
                 },
-                shape = ShapeCache.smooth20,
-                colors = FilterChipDefaults.filterChipColors(
-                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    disabledLabelColor = MaterialTheme.colorScheme.outline
-                )
+                shape = ShapeCache.smooth20
             )
         }
     }

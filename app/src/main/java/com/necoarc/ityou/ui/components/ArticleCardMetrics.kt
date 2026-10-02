@@ -88,30 +88,31 @@ fun articleCardMetrics(
     titleLines: Int = 2,
     summaryLines: Int = 2
 ): ArticleCardMetrics = ArticleCardMetrics(
-    titleLineHeight = density.textUnitToDp(titleLineHeight) ?: DEFAULT_TITLE_LINE_HEIGHT,
-    summaryLineHeight = density.textUnitToDp(summaryLineHeight) ?: DEFAULT_SUMMARY_LINE_HEIGHT,
-    metaHeight = density.textUnitToDp(metaLineHeight) ?: DEFAULT_META_HEIGHT,
+    titleLineHeight = textUnitToDp(density, titleLineHeight) ?: DEFAULT_TITLE_LINE_HEIGHT,
+    summaryLineHeight = textUnitToDp(density, summaryLineHeight) ?: DEFAULT_SUMMARY_LINE_HEIGHT,
+    metaHeight = textUnitToDp(density, metaLineHeight) ?: DEFAULT_META_HEIGHT,
     titleLines = titleLines,
     summaryLines = summaryLines
 )
 
 /**
- * sp → dp 换算：`sp → px → dp`。
+ * sp → dp 换算。
  *
- * `TextUnit.toPx()` 与 `Float.toDp()` 都是 [Density] 的成员扩展函数，
- * 因此这里必须声明为 Density 的扩展才能调用（本文件顶部已 import Density）。
+ * 这里刻意**不用** `TextUnit.toPx()` 无参重载：它依赖 `DensityAmbient` /
+ * `FontScaleAmbient` 这两个 CompositionLocal，在非组合环境（例如单元测试）中会抛异常，
+ * 属于隐式依赖。改为显式读取 [Density.fontScale] 与 [Density.density]：
  *
- * 该换算的语义非常明确：`toPx()` = `value * fontScale * density`，
- * `toDp()` = `px / density`，两者相消后**只受系统字号缩放（fontScale）影响**。
- * 这一点是「骨架屏与真实卡片在任何屏幕上都严格对齐」的数学基础。
+ *     px = value * fontScale * density
+ *     dp = px / density
+ *     => dp = value * fontScale
+ *
+ * 相消之后结果**只受系统字号缩放影响**，与屏幕像素密度无关。
+ * 这正是「骨架屏与真实卡片在任何设备上都严格对齐」的数学基础，
+ * 同时也是 `ArticleCardMetricsTest` 能够精确断言的前提。
  */
-internal fun Density.textUnitToDp(unit: TextUnit): Dp? {
+internal fun textUnitToDp(density: Density, unit: TextUnit): Dp? {
     if (!unit.isSp || unit.value <= 0f) return null
-    return try {
-        unit.toPx().toDp()
-    } catch (_: Exception) {
-        null
-    }
+    return (unit.value * density.fontScale).dp
 }
 
 /**
@@ -134,12 +135,7 @@ fun rememberArticleCardMetrics(): ArticleCardMetrics {
 }
 
 /**
- * 安全地把排版行高（sp）换算为 dp（自动包含系统字号缩放）。
- *
- * 这里刻意不用 `TextUnit.toDp()`，而是走「sp → px → dp」两步换算：
- * `toPx()` 与 `Float.toDp()` 的语义非常明确（前者 `value * fontScale * density`，
- * 后者 `px / density`），因此换算结果只受系统字号缩放影响，
- * 不会因为设备像素密度不同而出现偏差。这一点对「骨架屏与真实卡片对齐」至关重要。
+ * 安全地把排版行高（sp）换算为 dp，换算规则见 [textUnitToDp]。
  */
 internal fun lineHeightToDp(density: Density, style: TextStyle): Dp? =
-    density.textUnitToDp(style.lineHeight)
+    textUnitToDp(density, style.lineHeight)

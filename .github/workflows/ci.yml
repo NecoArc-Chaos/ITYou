@@ -18,18 +18,20 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           java-version: '17'
           distribution: 'temurin'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        # 固定 v5：v6 起 Gradle 缓存组件转为专有商业许可（gradle.com/legal/terms-of-use），
+        # 本项目为 MIT 开源，故停留在最后一个完全 MIT 的版本（v5 已升级至 node24）。
+        uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: 8.9
           cache-read-only: false
@@ -93,14 +95,14 @@ jobs:
           sha256sum "release_dist/$RELEASE_NAME" > "release_dist/$RELEASE_NAME.sha256"
 
       - name: Upload Release Artifact to Actions
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ITYou-v${{ steps.app_version.outputs.version }}-release-apk
           path: release_dist/*
           retention-days: 14
 
       - name: Publish GitHub Pre-Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: v${{ steps.app_version.outputs.version }}-preview

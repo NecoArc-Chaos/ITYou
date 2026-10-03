@@ -233,7 +233,7 @@ object HtmlParser {
         val pubTime = doc.selectFirst("#pubtime_baidu, .pubtime, .time")?.text() ?: ""
 
         val blocks = mutableListOf<ContentBlock>()
-        val contentElement = doc.selectFirst("#paragraph, .post_content, .content")
+        val contentElement = resolveContentElement(doc)
 
         if (contentElement != null) {
             parseElementRecursive(contentElement, blocks)
@@ -253,6 +253,59 @@ object HtmlParser {
             originalUrl = fallbackUrl
         )
     }
+
+    /**
+     * 精准定位正文容器。
+     *
+     * 背景：IT之家 PC 端正文 HTML 结构为
+     * `<div class="fl content">` 外层包裹 `<h1>标题</h1>`、`#paragraph/.post_content` 正文、
+     * 以及 `.related_post`（内含 `<h2>相关文章</h2>`）等多个兄弟节点。
+     * 若直接用 `.content` 命中外层容器再递归解析，会把「标题 h1」与「相关文章 h2」
+     * 一并当作正文 Heading 混入 [blocks]，导致详情页标题 / 「相关文章」标题重复出现。
+     *
+     * 因此这里：
+     * 1. 优先命中精确正文容器（PC 端 `#paragraph` / `.post_content`，移动端 `.news-content`）。
+     * 2. 仅当以上都缺失时，才回退到 `.content`，并主动剔除导航/元信息/相关文章等噪声节点。
+     */
+    private fun resolveContentElement(doc: Document): Element? {
+        doc.selectFirst("#paragraph, .post_content, .news-content")?.let { return it }
+
+        return doc.selectFirst(".content")?.also { wrapper ->
+            wrapper.select(
+                ".related_post, #related_post, .relevant-news, .newserror, " +
+                    ".newsgrade, .shareto, .bdsharebuttonbox, .cv, .info, .down_app, h1"
+            ).remove()
+        }
+    }
+
+    /**
+     * 从详情页 HTML 中提取 PC 评论接口所需的 `sn` 令牌。
+     *
+     * PC 评论接口（`cmt.ithome.com/api/webcomment/*`）依赖 PC 页面内嵌的 `sn`：
+     * ```html
+     * <div id="post_comm" data-id="628f56baadfd8115"></div>
+     * ```
+     * 该令牌同时用于：评论分页（`getnewscomment?cid=`）与楼中楼展开（`getcommentcontent`）。
+     *
+     * @return sn 令牌；页面结构变更导致提取失败时返回 null
+     */
+    fun extractCommentSn(html: String): String? =
+        PC_SN_PATTERN.find(html)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
+
+    /**
+     * 从移动端详情页 HTML 中提取 canonical 的 PC 版 URL。
+     *
+     * 移动端页面会通过 `<link rel="canonical" href="https://www.ithome.com/...">`
+     * 声明对应的 PC 地址，据此可直接抓取 PC 页面以获取 `sn`。
+     *
+     * @return PC 版 URL；未声明时返回 null
+     */
+    fun extractCanonicalUrl(html: String): String? =
+        CANONICAL_PATTERN.find(html)?.groupValues?.get(1)?.takeIf { it.startsWith("http") }
+
+    private val PC_SN_PATTERN = Regex("""id="post_comm"[^>]*data-id="([^"]+)"""")
+
+    private val CANONICAL_PATTERN = Regex("""<link[^>]*rel="canonical"[^>]*href="([^"]+)"""")
 
     /**
      * 解析页面中的「相关文章」区块。

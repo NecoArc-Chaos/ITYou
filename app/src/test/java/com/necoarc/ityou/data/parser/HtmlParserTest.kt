@@ -192,4 +192,100 @@ class HtmlParserTest {
         assertEquals("https://img.ithome.com/rel1.jpg", rel.coverImageUrl)
         assertEquals("2026.09.29", rel.publishTime)
     }
+
+    @Test
+    fun parseArticleDetail_pcWrapperDoesNotLeakTitleOrRelatedHeadingIntoBlocks() {
+        // 复刻 IT之家 PC 端真实 DOM：外层 `.fl content` 包裹 h1 标题、
+        // `#paragraph` 正文、以及 `.related_post`（内含 <h2>相关文章</h2>）。
+        val sampleHtml = """
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <div id="dt" class="bb clearfix">
+                    <div class="fl content">
+                        <div class="cv">首页 &gt; 智车之家</div>
+                        <h1>长安汽车 9 月交付 22.89 万辆</h1>
+                        <div class="info clearfix"><span id="author_baidu">问舟</span></div>
+                        <div class="post_content " id="paragraph">
+                            <p>这是正文第一段。</p>
+                            <p>这是正文第二段。</p>
+                        </div>
+                        <div class="newserror"></div>
+                        <div class="shareto"></div>
+                        <div class="related_post">
+                            <div class="title"><h2>相关文章</h2></div>
+                            <ul class="list_3">
+                                <li><a href="https://www.ithome.com/1/008/253.htm">长安旗下两大品牌开启协同整合</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+        """.trimIndent()
+
+        val detail = HtmlParser.parseArticleDetail(sampleHtml, "1009170")
+
+        // 标题应只存在于 detail.title，不能作为 Heading 混入正文块
+        assertEquals("长安汽车 9 月交付 22.89 万辆", detail.title)
+        assertEquals(2, detail.contentBlocks.size)
+        assertTrue(
+            "正文块不应包含标题或「相关文章」标题",
+            detail.contentBlocks.all {
+                it is ContentBlock.Paragraph
+            }
+        )
+        assertEquals(
+            listOf("这是正文第一段。", "这是正文第二段。"),
+            detail.contentBlocks.map { (it as ContentBlock.Paragraph).text }
+        )
+
+        // 相关文章仍应被单独解析（PC 端 `.related_post ul li` 分支）
+        assertEquals(1, detail.relatedArticles.size)
+        assertEquals("长安旗下两大品牌开启协同整合", detail.relatedArticles[0].title)
+        assertEquals("https://www.ithome.com/1/008/253.htm", detail.relatedArticles[0].url)
+    }
+
+    @Test
+    fun extractCommentSn_parsesPcPageToken() {
+        val pcHtml = """
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <div id="post_comm" data-id="628f56baadfd8115" data-rule-hint="良言一句三冬暖"></div>
+            </body>
+            </html>
+        """.trimIndent()
+
+        assertEquals("628f56baadfd8115", HtmlParser.extractCommentSn(pcHtml))
+    }
+
+    @Test
+    fun extractCommentSn_returnsNullWhenMissing() {
+        assertNull(HtmlParser.extractCommentSn("<html><body>no token</body></html>"))
+        // data-id 为空
+        assertNull(HtmlParser.extractCommentSn("""<div id="post_comm" data-id=""></div>"""))
+    }
+
+    @Test
+    fun extractCanonicalUrl_parsesPcUrlFromMobilePage() {
+        val mobileHtml = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <link rel="canonical" href="https://www.ithome.com/1/009/494.htm" />
+            </head>
+            <body></body>
+            </html>
+        """.trimIndent()
+
+        assertEquals("https://www.ithome.com/1/009/494.htm", HtmlParser.extractCanonicalUrl(mobileHtml))
+    }
+
+    @Test
+    fun extractCanonicalUrl_returnsNullWhenMissingOrNonHttp() {
+        assertNull(HtmlParser.extractCanonicalUrl("<html><head></head><body></body></html>"))
+        // 非 http 开头
+        assertNull(HtmlParser.extractCanonicalUrl("""<link rel="canonical" href="/1/009/494.htm" />"""))
+    }
 }

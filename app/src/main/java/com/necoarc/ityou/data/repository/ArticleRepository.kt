@@ -3,8 +3,11 @@ package com.necoarc.ityou.data.repository
 import androidx.compose.runtime.Immutable
 import com.necoarc.ityou.data.model.Article
 import com.necoarc.ityou.data.model.ArticleCategory
+import com.necoarc.ityou.data.model.ArticleComment
 import com.necoarc.ityou.data.model.ArticleDetail
 import com.necoarc.ityou.data.model.ArticlePage
+import com.necoarc.ityou.data.parser.CommentPageResult
+import com.necoarc.ityou.data.parser.CommentParser
 import com.necoarc.ityou.data.parser.HtmlParser
 import com.necoarc.ityou.data.remote.NetworkClient
 import kotlinx.coroutines.Dispatchers
@@ -145,6 +148,137 @@ class ArticleRepository {
     // ------------------------------------------------------------------
     // 数据抓取（全部在 IO 线程执行）
     // ------------------------------------------------------------------
+
+    /**
+     * 拉取文章评论列表（支持游标分页）。
+     *
+     * 采用 PC 评论接口 `cmt.ithome.com/api/webcomment/getnewscomment`：
+     * 1. 抓取移动端详情页，取 canonical 的 PC 地址；
+     * 2. 抓取 PC 页面提取 `sn` 令牌；
+     * 3. 调评论接口（`cid` 游标分页）。
+     *
+     * 之所以不用移动端 `newscommentlistget`：移动端只内联部分回复且没有
+     * 独立的楼中楼展开接口；PC 接口同时支持分页与 `expandCount` 展开，
+     * 令牌体系统一为 `sn`，便于后续按需加载剩余回复。
+     *
+     * 任一步骤令牌缺失（页面结构变更）时返回空结果而非抛错，避免阻塞详情页。
+     *
+     * @param url 文章详情页 URL（移动端 m.ithome.com 地址）
+     * @param cursor 0 表示首页（会合并热门评论）；否则为上一页的 [CommentPageResult.nextCursor]
+     * @param sn 已缓存的 sn 令牌；为空时本方法会自行抓取解析
+     */
+    suspend fun getArticleComments(
+        url: String,
+        cursor: String = "0",
+        sn: String? = null
+    ): Result<CommentPageResult> =
+        withContext(Dispatchers.IO) {
+            if (url.isBlank()) {
+                return@withContext Result.success(CommentPageResult())
+            }
+            try {
+                val token = (sn?.takeIf { it.isNotBlank() } ?: resolveCommentSn(url))
+                    ?.also { resolved -> cachedCommentSn = resolved }
+                if (token.isNullOrBlank()) {
+                    return@withContext Result.success(CommentPageResult())
+                }
+
+                val isFirstPage = cursor == "0"
+                val commentRequest = Request.Builder()
+                    .url(buildCommentListUrl(token, cursor))
+                    .header("User-Agent", NetworkClient.USER_AGENT)
+                    .header("Referer", "https://www.ithome.com/")
+                    .build()
+
+                val pageResult = client.newCall(commentRequest).execute().use { response ->
+                    if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+                    val json = response.body?.string().orEmpty()
+                    CommentParser.parseComments(json, isFirstPage = isFirstPage)
+                }
+
+                Result.success(pageResult.copy(sn = token))
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    /** 最近一次成功解析的 sn 令牌（进程内缓存，减少重复抓取 PC 页面）。 */
+    @Volatile
+    var cachedCommentSn: String? = null
+        private set
+
+    /**
+     * 展开某条评论下剩余的楼中楼回复（`getcommentcontent`）。
+     *
+     * @param commentId 目标父评论 id
+     * @param url 文章详情页 URL（用于在 sn 未缓存时兜底解析）
+     * @param sn 已缓存的 sn 令牌
+     */
+    suspend fun getCommentReplies(
+        commentId: String,
+        url: String,
+        sn: String? = null
+    ): Result<List<ArticleComment>> =
+        withContext(Dispatchers.IO) {
+            if (commentId.isBlank()) return@withContext Result.success(emptyList())
+            try {
+                val token = sn?.takeIf { it.isNotBlank() } ?: resolveCommentSn(url)
+                if (token.isNullOrBlank()) return@withContext Result.success(emptyList())
+
+                val request = Request.Builder()
+                    .url(buildCommentContentUrl(commentId, token))
+                    .header("User-Agent", NetworkClient.USER_AGENT)
+                    .header("Referer", "https://www.ithome.com/")
+                    .build()
+
+                val replies = client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+                    val json = response.body?.string().orEmpty()
+                    CommentParser.parseCommentContent(json)
+                }
+
+                Result.success(replies)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    /**
+     * 解析评论 `sn` 令牌：移动端详情页 → canonical PC 地址 → PC 页面 `sn`。
+     */
+    private fun resolveCommentSn(url: String): String? {
+        val mobileHtml = fetchHtml(url) ?: return null
+        val pcUrl = HtmlParser.extractCanonicalUrl(mobileHtml) ?: return null
+        val pcHtml = fetchHtml(pcUrl) ?: return null
+        return HtmlParser.extractCommentSn(pcHtml)
+    }
+
+    private fun fetchHtml(url: String): String? = try {
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", NetworkClient.USER_AGENT)
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (response.isSuccessful) response.body?.string() else null
+        }
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun buildCommentListUrl(sn: String, cursor: String): String =
+        "https://cmt.ithome.com/api/webcomment/getnewscomment" +
+            "?sn=$sn&cid=$cursor&isInit=true&appver=900"
+
+    private fun buildCommentContentUrl(commentId: String, sn: String): String =
+        "https://cmt.ithome.com/api/webcomment/getcommentcontent" +
+            "?commentId=$commentId&sn=$sn&appver=900"
+
 
     private suspend fun fetchRawPageFromApi(cursor: Long): RawNewsPage = withContext(Dispatchers.IO) {
         val url = if (cursor > 0L) "$NEWS_LIST_API?ot=$cursor" else NEWS_LIST_API

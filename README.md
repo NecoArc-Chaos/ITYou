@@ -44,6 +44,11 @@
 - **原生 Compose 段落排版**：基于 Jsoup 将 HTML 转换为原生 ContentBlock 树，包含自适应等比高清大图、引用快、等宽代码块等。
 - **相关文章流**：文章末尾自动提取并展示相关联的扩展文章条目，支持点选无缝连贯跳转阅读。
 
+### 💬 完整评论区与楼中楼讨论
+- **真实评论流**：展示 IT 之家真实评论，含头像、昵称、地区、楼层、时间与支持/反对数，正文支持长按选中复制。
+- **游标分页**：底部「加载更多评论」基于评论 id 游标按需拉取更早的评论，滑阅无断层。
+- **楼中楼回复**：回复默认折叠、一键展开；当服务端仍有未内联回复时，可点击「展开另外 N 条」按需补齐，并展示「回复 @某人」的引用关系。
+
 ---
 
 ## 🛠️ 技术架构
@@ -57,8 +62,8 @@ ITYou/
 │   │   ├── ITYouApplication.kt          # 全局基础设施、网络单例与 Coil 调优配置
 │   │   ├── MainActivity.kt               # Edge-to-Edge 系统栏与预见式导航路由调度
 │   │   ├── data/
-│   │   │   ├── model/                   # 纯不可变数据契约 (Article, ContentBlock, ReleaseNote 等)
-│   │   │   ├── parser/                  # Jsoup / JSON 结构化流式解析引擎
+│   │   │   ├── model/                   # 纯不可变数据契约 (Article, ContentBlock, ArticleComment, ReleaseNote 等)
+│   │   │   ├── parser/                  # Jsoup / JSON 结构化流式解析引擎 (正文 / 列表 / 评论)
 │   │   │   ├── remote/                  # 统一单例 OkHttp 线程池、连接池与短期响应缓存
 │   │   │   └── repository/              # 数据仓库 (分页收集器与设置持久化)
 │   │   └── ui/
@@ -77,7 +82,7 @@ ITYou/
 ## 📦 下载与体验
 
 - **运行要求**：Android 8.0 (API 26) 及以上，推荐 Android 14+ 以获得最佳预见式返回动效。
-- **下载安装**：前往仓库的 [**Releases 页面**](https://github.com/NecoArc-Chaos/ITYou/releases) 获取最新的 Pre-Release 安装包（`ITYou-v1.5.0-release.apk`，内置 R8 深度混淆与 Baseline Profile 优化）。
+- **下载安装**：前往仓库的 [**Releases 页面**](https://github.com/NecoArc-Chaos/ITYou/releases) 获取最新的 Pre-Release 安装包（`ITYou-v1.6.0-release.apk`，内置 R8 深度混淆与 Baseline Profile 优化）。
 
 ---
 

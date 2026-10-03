@@ -73,31 +73,48 @@ class HomeViewModel(
         _uiState.update { it.copy(refreshResult = null) }
     }
 
-    /** 触底加载更多。重复调用是安全的（内部有状态守卫）。 */
+    /**
+     * 触底加载更多。重复调用是安全的（内部有状态守卫）。
+     *
+     * 注意：[cursor] 在**协程外**同步读取，再作为参数传入协程。
+     * 如果改到协程体内读取，刷新把 cursor 归零的时机就会与本方法竞争，
+     * 导致"用旧游标请求下一页、又叠加到即将被替换的新列表上"，
+     * 出现重复或错乱的条目。
+     */
     fun loadMore() {
         val state = _uiState.value
-        if (state.isLoading || state.isLoadingMore || !state.hasMore) return
+        if (state.isLoading || state.isRefreshing || state.isLoadingMore || !state.hasMore) return
         if (loadMoreJob?.isActive == true) return
+
+        // 同步快照游标与分类，避免协程调度期间被刷新改写
+        val requestCursor = cursor
+        val requestCategory = state.selectedCategory
 
         loadMoreJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoadingMore = true, loadMoreFailed = false) }
 
             val result = repository.getArticlePage(
-                category = state.selectedCategory,
-                cursor = cursor
+                category = requestCategory,
+                cursor = requestCursor
             )
 
             result.onSuccess { page ->
-                cursor = page.nextCursor
-                val existingIds = _uiState.value.articles.mapTo(HashSet()) { it.id }
-                val appended = page.articles.filterNot { it.id in existingIds }
-                _uiState.update { current ->
-                    current.copy(
-                        isLoadingMore = false,
-                        articles = current.articles + appended,
-                        hasMore = page.hasMore
-                    )
+                // 若期间发生了刷新/切分类，本次结果已过期，直接丢弃，
+                // 否则会把旧页数据追加到新列表上。
+                val current = _uiState.value
+                if (current.selectedCategory != requestCategory || current.isRefreshing) {
+                    _uiState.update { it.copy(isLoadingMore = false) }
+                    return@onSuccess
                 }
+
+                cursor = page.nextCursor
+                val existingIds = current.articles.mapTo(HashSet()) { it.id }
+                val appended = page.articles.filterNot { it.id in existingIds }
+                _uiState.update { it.copy(
+                    isLoadingMore = false,
+                    articles = it.articles + appended,
+                    hasMore = page.hasMore
+                ) }
             }.onFailure {
                 _uiState.update { current -> current.copy(isLoadingMore = false, loadMoreFailed = true) }
             }
@@ -117,17 +134,28 @@ class HomeViewModel(
     }
 
     private fun loadFirstPage(clearExisting: Boolean, isRefresh: Boolean = false) {
+        // 已有刷新在途时直接忽略，避免快速连点导致重复请求与计数错乱
+        if (isRefresh && _uiState.value.isRefreshing) return
+
+        // 在切换协程之前同步快照，保证「更新了几篇」的基准是用户当前看到的列表
+        val previousIds = if (isRefresh) {
+            _uiState.value.articles.mapTo(HashSet()) { it.id }
+        } else {
+            null
+        }
+        val category = _uiState.value.selectedCategory
+
+        // 同步置位刷新标志（而不是等协程体执行）：
+        // 否则 loadMore() 的守卫会读到尚未更新的 isRefreshing，
+        // 在「刷新刚启动、协程体还没跑」的窗口里放行一次过期的加载更多。
+        if (isRefresh) {
+            _uiState.update { it.copy(isRefreshing = true, refreshResult = null) }
+        }
+
         firstPageJob?.cancel()
         loadMoreJob?.cancel()
 
         firstPageJob = viewModelScope.launch {
-            // 记住刷新前的头条 id 快照，用于计算「更新了几篇」
-            val previousIds = if (isRefresh) {
-                _uiState.value.articles.mapTo(HashSet()) { it.id }
-            } else {
-                null
-            }
-
             _uiState.update { current ->
                 current.copy(
                     isLoading = !isRefresh,
@@ -142,7 +170,6 @@ class HomeViewModel(
             }
             cursor = 0L
 
-            val category = _uiState.value.selectedCategory
             val result = repository.getArticlePage(category = category, cursor = 0L)
 
             result.onSuccess { page ->

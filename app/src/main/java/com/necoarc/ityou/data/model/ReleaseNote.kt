@@ -34,10 +34,23 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v1.7.1",
+        releaseDate = "2026-10-04",
+        summary = "下拉刷新改用契合本应用形状与配色的指示器；修复刷新与触底加载并发时的游标竞争、刷新失败静默无提示等问题。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.IMPROVEMENT, "下拉刷新指示器改为胶囊形状 + primaryContainer 配色，与本应用形状语言统一"),
+            ChangeItem(ChangeType.FIX, "修复刷新与触底加载并发时使用过期游标、导致文章重复或错乱的问题"),
+            ChangeItem(ChangeType.FIX, "修复刷新失败且列表非空时无任何提示的静默失败问题"),
+            ChangeItem(ChangeType.FIX, "快速连点刷新会重复发起请求并把「更新了几篇」算错，现已加并发守卫"),
+            ChangeItem(ChangeType.IMPROVEMENT, "刷新启动即同步置位刷新状态，避免触底加载在刷新窗口期被放行")
+        )
+    ),
+    ReleaseNote(
         version = "v1.7.0",
         releaseDate = "2026-10-03",
         summary = "首页新增下拉刷新手势与刷新旋转动效，刷新完成提示更新条数；设置页版本号改为跟随构建自动读取。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "首页支持下拉刷新手势，松手即拉取最新内容"),
             ChangeItem(ChangeType.FEATURE, "顶栏刷新按钮新增匀速旋转动效，刷新中直观反馈进行状态"),

@@ -30,7 +30,7 @@ data class RawNewsPage(
     val hasMore: Boolean = true
 )
 
-class ArticleRepository {
+open class ArticleRepository {
 
     private val client get() = NetworkClient.client
 
@@ -47,7 +47,7 @@ class ArticleRepository {
      *
      * @param cursor 0 表示从最新开始；否则为上一页返回的 [ArticlePage.nextCursor]
      */
-    suspend fun getArticlePage(
+    open suspend fun getArticlePage(
         category: ArticleCategory = ArticleCategory.ALL,
         cursor: Long = 0L
     ): Result<ArticlePage> {

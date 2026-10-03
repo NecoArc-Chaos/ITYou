@@ -1,5 +1,6 @@
 package com.necoarc.ityou.ui.screens.home
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
@@ -38,6 +40,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshState
+import androidx.compose.material3.pulltorefresh.pullToRefreshIndicator
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -49,6 +54,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -61,6 +67,7 @@ import com.necoarc.ityou.ui.components.FeedItemType
 import com.necoarc.ityou.ui.components.HeroArticleCard
 import com.necoarc.ityou.ui.components.HomeSkeletonScreen
 import com.necoarc.ityou.ui.theme.Dimens
+import com.necoarc.ityou.ui.theme.Motion
 import com.necoarc.ityou.ui.theme.ShapeCache
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -105,6 +112,15 @@ fun HomeScreen(
         }
     }
 
+    // 刷新失败提示：列表非空时错误页不会展示（错误页只用于「首屏为空」的场景），
+    // 若不在这里兜底，用户只会看到转圈突然停止、没有任何反馈 —— 属于静默失败。
+    val errorMessage = uiState.errorMessage
+    LaunchedEffect(errorMessage) {
+        if (errorMessage != null && uiState.articles.isNotEmpty()) {
+            snackbarHostState.showSnackbar(message = errorMessage)
+        }
+    }
+
     Scaffold(
         topBar = {
             HomeTopBar(
@@ -132,9 +148,19 @@ fun HomeScreen(
 
             else -> {
                 // 下拉刷新：仅包裹列表区域（骨架屏/错误页无需下拉）
+                val pullState = rememberPullToRefreshState()
                 PullToRefreshBox(
                     isRefreshing = uiState.isRefreshing,
                     onRefresh = { viewModel.refresh() },
+                    state = pullState,
+                    // 自定义指示器：与本应用的胶囊形状 / primaryContainer 配色对齐
+                    indicator = {
+                        Md3ePullToRefreshIndicator(
+                            state = pullState,
+                            isRefreshing = uiState.isRefreshing,
+                            modifier = Modifier.align(Alignment.TopCenter)
+                        )
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
@@ -202,6 +228,78 @@ private fun AnimatedRefreshIcon(isRefreshing: Boolean) {
 
 /** 刷新图标的旋转速度（度/秒）。 */
 private const val DEGREES_PER_SECOND = 400f
+
+/**
+ * MD3E 下拉刷新指示器。
+ *
+ * 替代 `PullToRefreshDefaults.Indicator` 的默认样式，使其与本应用的形状/配色体系一致：
+ * - **形状**：胶囊形 [ShapeCache.smoothPill]，替代默认的 `CircleShape`
+ *   （默认的圆形容器在本应用的「药丸化」形状语言里显得突兀）；
+ * - **容器色**：`primaryContainer`，替代默认的 `surfaceContainerHigh`，
+ *   让下拉动作带上品牌强调色；
+ * - **动效**：阈值前后的状态切换用 [Motion.fadeInSpec] 弹簧，
+ *   而非默认的固定时长 [androidx.compose.animation.Crossfade]，
+ *   与全应用动效语言保持一致。
+ *
+ * 实现说明：这里**直接使用 `Modifier.pullToRefreshIndicator`**，
+ * 它内部已负责尺寸（40dp）、位移、裁剪与容器背景绘制，
+ * 不要再外包一层 `Surface` 或自行 `.size()`，否则会与它冲突并导致定位错乱。
+ */
+@Composable
+private fun Md3ePullToRefreshIndicator(
+    state: PullToRefreshState,
+    isRefreshing: Boolean,
+    modifier: Modifier = Modifier
+) {
+    // 仅在「拉过阈值」时才切换到"松手即可刷新"的视觉，给用户明确信号
+    val active = isRefreshing || state.distanceFraction >= 1f
+    // 用弹簧驱动透明度，避免默认 Crossfade 的固定时长与全应用动效脱节
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (active) 1f else 0.55f,
+        animationSpec = Motion.fadeInSpec,
+        label = "ptrContentAlpha"
+    )
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier.pullToRefreshIndicator(
+            state = state,
+            isRefreshing = isRefreshing,
+            shape = ShapeCache.smoothPill,
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            elevation = PULL_TO_REFRESH_ELEVATION
+        )
+    ) {
+        if (isRefreshing) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .size(PULL_TO_REFRESH_SPINNER_SIZE)
+                    .alpha(contentAlpha),
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                strokeWidth = PULL_TO_REFRESH_STROKE
+            )
+        } else {
+            // 未松手：旋转箭头表示"继续下拉"，旋转量随下拉距离推进
+            Icon(
+                imageVector = Icons.Outlined.ArrowDownward,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = contentAlpha),
+                modifier = Modifier
+                    .size(PULL_TO_REFRESH_SPINNER_SIZE)
+                    .rotate(180f * state.distanceFraction.coerceIn(0f, 1f))
+            )
+        }
+    }
+}
+
+/** 指示器内图形尺寸。 */
+private val PULL_TO_REFRESH_SPINNER_SIZE = 20.dp
+
+/** 指示器描边粗细。 */
+private val PULL_TO_REFRESH_STROKE = 2.5.dp
+
+/** 指示器阴影海拔（与默认 Level2 保持一致）。 */
+private val PULL_TO_REFRESH_ELEVATION = 2.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

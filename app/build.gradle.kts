@@ -78,6 +78,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.profileinstaller)
     implementation(libs.coil.compose)
+    implementation(libs.coil.svg)
     implementation(libs.jsoup)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)

@@ -5,16 +5,14 @@ import com.necoarc.ityou.data.model.ArticleComment
 import org.json.JSONObject
 
 /**
- * 评论解析结果：一页评论 + 下一页游标 + 本次请求使用的 `sn` 令牌。
+ * 评论解析结果：全部评论 + 本次请求使用的 `sn` 令牌。
  *
- * @param comments 本页评论（含内联楼中楼）
- * @param nextCursor 下一页游标 = 本页最后一条评论 id；为空字符串表示没有更多
+ * @param comments 评论列表（热门 + 普通，含内联楼中楼）
  * @param sn 本次请求使用的 sn 令牌（供后续「加载剩余回复」复用，避免重复抓页面）
  */
 @Immutable
 data class CommentPageResult(
     val comments: List<ArticleComment> = emptyList(),
-    val nextCursor: String = "",
     val sn: String = ""
 )
 
@@ -39,16 +37,14 @@ data class CommentPageResult(
 object CommentParser {
 
     /**
-     * 解析评论列表响应（含分页游标）。
+     * 解析评论列表响应。
+     *
+     * 接口一次性返回全部评论，因此这里合并 `hotComments`（热门）与
+     * `comments`（普通）后统一返回，并以 id 去重。
      *
      * @param jsonString API 返回的原始 JSON 字符串
-     * @param isFirstPage 是否首页。首页会合并 `hotComments`（热门）与 `comments`；
-     *                    后续页仅有 `comments`，不做热门合并。
      */
-    fun parseComments(
-        jsonString: String,
-        isFirstPage: Boolean = true
-    ): CommentPageResult {
+    fun parseComments(jsonString: String): CommentPageResult {
         return try {
             val root = JSONObject(jsonString)
             if (!root.optBoolean("success")) return CommentPageResult()
@@ -56,26 +52,21 @@ object CommentParser {
 
             val comments = mutableListOf<ArticleComment>()
 
-            // 1. 热门评论（仅首页）
-            if (isFirstPage) {
-                val hot = content.optJSONArray("hotComments")
-                if (hot != null) {
-                    for (i in 0 until hot.length()) {
-                        val item = hot.optJSONObject(i) ?: continue
-                        parseCommentNode(item)?.let(comments::add)
-                    }
+            // 1. 热门评论
+            val hot = content.optJSONArray("hotComments")
+            if (hot != null) {
+                for (i in 0 until hot.length()) {
+                    val item = hot.optJSONObject(i) ?: continue
+                    parseCommentNode(item)?.let(comments::add)
                 }
             }
 
-            // 2. 普通评论
+            // 2. 普通评论（与热门去重）
             val list = content.optJSONArray("comments")
-            val rawComments = mutableListOf<JSONObject>()
             if (list != null) {
                 for (i in 0 until list.length()) {
                     val item = list.optJSONObject(i) ?: continue
-                    rawComments.add(item)
                     parseCommentNode(item)?.let { comment ->
-                        // 去重：热门已返回的评论不再重复显示
                         if (comments.none { it.id == comment.id }) {
                             comments.add(comment)
                         }
@@ -83,10 +74,7 @@ object CommentParser {
                 }
             }
 
-            // 3. 游标 = 本页最后一条（最旧）评论 id
-            val nextCursor = rawComments.lastOrNull()?.optString("id").orEmpty()
-
-            CommentPageResult(comments = comments, nextCursor = nextCursor)
+            CommentPageResult(comments = comments)
         } catch (_: Exception) {
             CommentPageResult()
         }

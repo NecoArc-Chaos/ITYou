@@ -150,26 +150,24 @@ class ArticleRepository {
     // ------------------------------------------------------------------
 
     /**
-     * 拉取文章评论列表（支持游标分页）。
+     * 拉取文章评论列表。
      *
      * 采用 PC 评论接口 `cmt.ithome.com/api/webcomment/getnewscomment`：
      * 1. 抓取移动端详情页，取 canonical 的 PC 地址；
      * 2. 抓取 PC 页面提取 `sn` 令牌；
-     * 3. 调评论接口（`cid` 游标分页）。
+     * 3. 调评论接口拉取全部评论（含内联楼中楼）。
      *
-     * 之所以不用移动端 `newscommentlistget`：移动端只内联部分回复且没有
-     * 独立的楼中楼展开接口；PC 接口同时支持分页与 `expandCount` 展开，
-     * 令牌体系统一为 `sn`，便于后续按需加载剩余回复。
+     * 实测该接口一次性返回全部评论（`cid` 游标不会产生第二页），因此不做分页；
+     * 之所以仍用 PC 接口而非移动端：PC 接口提供 `sn` 令牌体系，
+     * 并支持 `expandCount` 展开剩余回复。
      *
      * 任一步骤令牌缺失（页面结构变更）时返回空结果而非抛错，避免阻塞详情页。
      *
      * @param url 文章详情页 URL（移动端 m.ithome.com 地址）
-     * @param cursor 0 表示首页（会合并热门评论）；否则为上一页的 [CommentPageResult.nextCursor]
      * @param sn 已缓存的 sn 令牌；为空时本方法会自行抓取解析
      */
     suspend fun getArticleComments(
         url: String,
-        cursor: String = "0",
         sn: String? = null
     ): Result<CommentPageResult> =
         withContext(Dispatchers.IO) {
@@ -183,9 +181,8 @@ class ArticleRepository {
                     return@withContext Result.success(CommentPageResult())
                 }
 
-                val isFirstPage = cursor == "0"
                 val commentRequest = Request.Builder()
-                    .url(buildCommentListUrl(token, cursor))
+                    .url(buildCommentListUrl(token))
                     .header("User-Agent", NetworkClient.USER_AGENT)
                     .header("Referer", "https://www.ithome.com/")
                     .build()
@@ -193,7 +190,7 @@ class ArticleRepository {
                 val pageResult = client.newCall(commentRequest).execute().use { response ->
                     if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
                     val json = response.body?.string().orEmpty()
-                    CommentParser.parseComments(json, isFirstPage = isFirstPage)
+                    CommentParser.parseComments(json)
                 }
 
                 Result.success(pageResult.copy(sn = token))
@@ -271,9 +268,9 @@ class ArticleRepository {
         null
     }
 
-    private fun buildCommentListUrl(sn: String, cursor: String): String =
+    private fun buildCommentListUrl(sn: String): String =
         "https://cmt.ithome.com/api/webcomment/getnewscomment" +
-            "?sn=$sn&cid=$cursor&isInit=true&appver=900"
+            "?sn=$sn&cid=0&isInit=true&appver=900"
 
     private fun buildCommentContentUrl(commentId: String, sn: String): String =
         "https://cmt.ithome.com/api/webcomment/getcommentcontent" +

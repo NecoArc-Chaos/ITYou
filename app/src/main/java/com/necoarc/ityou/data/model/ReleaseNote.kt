@@ -36,12 +36,12 @@ val AppReleaseHistory = listOf(
     ReleaseNote(
         version = "v1.6.0",
         releaseDate = "2026-10-03",
-        summary = "新增文章评论区：分页浏览、楼中楼展开与按需加载剩余回复，并修复详情页标题/「相关文章」重复渲染问题。",
+        summary = "新增文章评论区：表情渲染、楼中楼展开动画与按需加载剩余回复，并修复详情页标题/「相关文章」重复渲染问题。",
         isLatest = true,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "文章详情页新增评论区：展示真实评论（头像、昵称、楼层、时间、支持/反对数）"),
-            ChangeItem(ChangeType.FEATURE, "评论游标分页：底部「加载更多评论」按需拉取更早的评论"),
-            ChangeItem(ChangeType.FEATURE, "楼中楼回复：默认折叠、点击展开，加载完成后自动展开"),
+            ChangeItem(ChangeType.FEATURE, "评论表情渲染：`[坏笑]` 等颜文字转为内联图片，与文字同段落混排"),
+            ChangeItem(ChangeType.FEATURE, "楼中楼回复：默认折叠、点击展开，展开与收起均带弹簧动画"),
             ChangeItem(ChangeType.FEATURE, "按需加载剩余回复：服务端报告仍有未内联回复时，可点击补齐并展示「回复 @某人」"),
             ChangeItem(ChangeType.FIX, "修复 PC 端页面结构导致的正文标题与「相关文章」标题重复渲染"),
             ChangeItem(ChangeType.IMPROVEMENT, "评论内容支持长按选中复制，评论项按 key/contentType 复用组合槽位")

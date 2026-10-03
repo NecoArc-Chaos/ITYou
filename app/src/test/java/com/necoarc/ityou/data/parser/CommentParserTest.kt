@@ -8,7 +8,7 @@ import org.junit.Test
 class CommentParserTest {
 
     @Test
-    fun parseComments_extractsHotAndNormalCommentsWithCursor() {
+    fun parseComments_extractsHotAndNormalComments() {
         val sampleJson = """
             {
                 "success": true,
@@ -63,7 +63,7 @@ class CommentParserTest {
             }
         """.trimIndent()
 
-        val page = CommentParser.parseComments(sampleJson, isFirstPage = true)
+        val page = CommentParser.parseComments(sampleJson)
 
         // 热门 + 普通合并
         assertEquals(3, page.comments.size)
@@ -79,9 +79,6 @@ class CommentParserTest {
         assertEquals("审美比比亚迪高多了", hot.content)
         assertEquals(11, hot.supportCount)
         assertEquals(1, hot.againstCount)
-
-        // 游标 = comments 最后一条（最旧）评论 id
-        assertEquals("76940813", page.nextCursor)
     }
 
     @Test
@@ -125,7 +122,7 @@ class CommentParserTest {
             }
         """.trimIndent()
 
-        val page = CommentParser.parseComments(sampleJson, isFirstPage = true)
+        val page = CommentParser.parseComments(sampleJson)
 
         assertEquals(1, page.comments.size)
         val parent = page.comments[0]
@@ -150,25 +147,28 @@ class CommentParserTest {
     }
 
     @Test
-    fun parseComments_skipsHotCommentsOnSubsequentPages() {
+    fun parseComments_mergesHotAndNormalAndDeduplicates() {
+        // 热门与普通列表出现同一条评论时应去重（id 相同）
         val sampleJson = """
             {
                 "success": true,
                 "content": {
                     "hotComments": [
-                        { "id": 1, "userInfo": { "userNick": "热门" }, "elements": [{ "type": 0, "content": "热门评论" }], "children": [] }
+                        { "id": 1, "userInfo": { "userNick": "热门" }, "elements": [{ "type": 0, "content": "同时出现在热门与普通" }], "children": [] }
                     ],
                     "comments": [
-                        { "id": 2, "userInfo": { "userNick": "普通" }, "elements": [{ "type": 0, "content": "普通评论" }], "children": [] }
+                        { "id": 1, "userInfo": { "userNick": "热门" }, "elements": [{ "type": 0, "content": "同时出现在热门与普通" }], "children": [] },
+                        { "id": 2, "userInfo": { "userNick": "普通" }, "elements": [{ "type": 0, "content": "仅普通评论" }], "children": [] }
                     ]
                 }
             }
         """.trimIndent()
 
-        val page = CommentParser.parseComments(sampleJson, isFirstPage = false)
-        assertEquals(1, page.comments.size)
-        assertEquals("2", page.comments[0].id)
-        assertEquals("2", page.nextCursor)
+        val page = CommentParser.parseComments(sampleJson)
+
+        assertEquals(2, page.comments.size)
+        assertEquals("1", page.comments[0].id) // 热门在前
+        assertEquals("2", page.comments[1].id)
     }
 
     @Test
@@ -183,7 +183,6 @@ class CommentParserTest {
         val empty = """{"success":true,"content":{"hotComments":[],"comments":[]}}"""
         val page = CommentParser.parseComments(empty)
         assertTrue(page.comments.isEmpty())
-        assertEquals("", page.nextCursor)
     }
 
     @Test

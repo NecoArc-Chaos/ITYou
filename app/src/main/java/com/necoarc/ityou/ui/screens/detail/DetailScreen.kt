@@ -1,5 +1,12 @@
 package com.necoarc.ityou.ui.screens.detail
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -69,8 +76,10 @@ import com.necoarc.ityou.data.model.ArticleComment
 import com.necoarc.ityou.data.model.ArticleDetail
 import com.necoarc.ityou.data.model.ContentBlock
 import com.necoarc.ityou.data.model.RelatedArticle
+import com.necoarc.ityou.ui.components.CommentEmojiText
 import com.necoarc.ityou.ui.components.DetailSkeletonScreen
 import com.necoarc.ityou.ui.theme.Dimens
+import com.necoarc.ityou.ui.theme.Motion
 import com.necoarc.ityou.ui.theme.ShapeCache
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -162,12 +171,9 @@ fun DetailScreen(
                     windowInsetsPadding = innerPadding,
                     comments = uiState.comments,
                     isCommentsLoading = uiState.isCommentsLoading,
-                    isLoadingMoreComments = uiState.isLoadingMoreComments,
-                    hasMoreComments = uiState.hasMoreComments,
                     commentsError = uiState.commentsError,
                     expandingCommentIds = uiState.expandingCommentIds,
                     onRetryComments = viewModel::retryComments,
-                    onLoadMoreComments = viewModel::loadMoreComments,
                     onExpandReplies = viewModel::expandCommentReplies,
                     onRelatedArticleClick = onRelatedArticleClick
                 )
@@ -193,12 +199,9 @@ private fun DetailContent(
     windowInsetsPadding: PaddingValues,
     comments: List<ArticleComment>,
     isCommentsLoading: Boolean,
-    isLoadingMoreComments: Boolean,
-    hasMoreComments: Boolean,
     commentsError: String?,
     expandingCommentIds: Set<String>,
     onRetryComments: () -> Unit,
-    onLoadMoreComments: () -> Unit,
     onExpandReplies: (String) -> Unit,
     onRelatedArticleClick: (id: String, url: String, title: String, pubTime: String) -> Unit
 ) {
@@ -453,16 +456,6 @@ private fun DetailContent(
                         onExpandReplies = { onExpandReplies(comment.id) }
                     )
                 }
-
-                // 加载更多（游标分页）
-                if (hasMoreComments || isLoadingMoreComments) {
-                    item(key = "comments_load_more", contentType = "comments_load_more") {
-                        CommentLoadMoreFooter(
-                            isLoading = isLoadingMoreComments,
-                            onClick = onLoadMoreComments
-                        )
-                    }
-                }
             }
 
             else -> {
@@ -583,18 +576,26 @@ private fun CommentItem(
                         onClick = { repliesExpanded = !repliesExpanded }
                     )
 
-                    if (repliesExpanded) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        comment.replies.forEach { reply ->
-                            Surface(
-                                shape = ShapeCache.smooth12,
-                                color = MaterialTheme.colorScheme.surfaceContainer,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 3.dp)
-                            ) {
-                                Box(modifier = Modifier.padding(10.dp)) {
-                                    CommentRow(comment = reply, compact = true)
+                    AnimatedVisibility(
+                        visible = repliesExpanded,
+                        enter = expandVertically(animationSpec = Motion.expandSize) +
+                            fadeIn(animationSpec = Motion.fadeInSpec),
+                        exit = shrinkVertically(animationSpec = Motion.expandSize) +
+                            fadeOut(animationSpec = Motion.fadeInSpec)
+                    ) {
+                        Column {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            comment.replies.forEach { reply ->
+                                Surface(
+                                    shape = ShapeCache.smooth12,
+                                    color = MaterialTheme.colorScheme.surfaceContainer,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 3.dp)
+                                ) {
+                                    Box(modifier = Modifier.padding(10.dp)) {
+                                        CommentRow(comment = reply, compact = true)
+                                    }
                                 }
                             }
                         }
@@ -714,19 +715,33 @@ private fun CommentRow(comment: ArticleComment, compact: Boolean = false) {
             // 正文（可选中复制）
             if (comment.content.isNotEmpty() || comment.replyToAuthor != null) {
                 Spacer(modifier = Modifier.height(4.dp))
+                val bodyStyle = if (compact) {
+                    MaterialTheme.typography.bodySmall
+                } else {
+                    MaterialTheme.typography.bodyMedium
+                }
                 SelectionContainer {
-                    Text(
-                        text = buildString {
-                            comment.replyToAuthor?.let { append("回复 @").append(it).append("：") }
-                            append(comment.content)
-                        },
-                        style = if (compact) {
-                            MaterialTheme.typography.bodySmall
-                        } else {
-                            MaterialTheme.typography.bodyMedium
-                        },
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    if (comment.replyToAuthor != null) {
+                        // 含「回复 @某人」前缀：前缀用纯文本，正文单独渲染以支持表情内联
+                        Row {
+                            Text(
+                                text = "回复 @${comment.replyToAuthor}：",
+                                style = bodyStyle,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            CommentEmojiText(
+                                text = comment.content,
+                                style = bodyStyle,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    } else {
+                        CommentEmojiText(
+                            text = comment.content,
+                            style = bodyStyle,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
 
@@ -783,58 +798,23 @@ private fun ReplyToggleButton(
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
         modifier = Modifier.clickable(onClick = onClick)
     ) {
-        Text(
-            text = if (expanded) "收起回复" else "展开 $count 条回复",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-        )
-    }
-}
-
-@Composable
-private fun CommentLoadMoreFooter(
-    isLoading: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        if (isLoading) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "加载中…",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            }
-        } else {
-            Surface(
-                shape = ShapeCache.smoothPill,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                modifier = Modifier.clickable(onClick = onClick)
-            ) {
-                Text(
-                    text = "加载更多评论",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-                )
-            }
+        // 文字在「展开 N 条回复 / 收起回复」间做淡入淡出切换，
+        // 避免文字长度突变造成的视觉跳变
+        AnimatedContent(
+            targetState = expanded,
+            transitionSpec = {
+                fadeIn(animationSpec = Motion.fadeInSpec) togetherWith
+                    fadeOut(animationSpec = Motion.fadeInSpec)
+            },
+            label = "replyToggleLabel"
+        ) { isExpanded ->
+            Text(
+                text = if (isExpanded) "收起回复" else "展开 $count 条回复",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+            )
         }
     }
 }

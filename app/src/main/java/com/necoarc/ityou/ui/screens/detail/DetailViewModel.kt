@@ -21,8 +21,6 @@ data class DetailUiState(
     val errorMessage: String? = null,
     val comments: List<ArticleComment> = emptyList(),
     val isCommentsLoading: Boolean = false,
-    val isLoadingMoreComments: Boolean = false,
-    val hasMoreComments: Boolean = false,
     val commentsError: String? = null,
     /** 正在展开剩余回复的父评论 id 集合（用于展示行内加载态）。 */
     val expandingCommentIds: Set<String> = emptySet()
@@ -50,12 +48,8 @@ class DetailViewModel(
     private var lastRequest: DetailRequest? = null
     private var loadJob: Job? = null
     private var commentsJob: Job? = null
-    private var loadMoreJob: Job? = null
 
-    /** 评论分页游标；"0" 表示尚未加载首页。 */
-    private var commentsCursor: String = "0"
-
-    /** 评论接口 sn 令牌缓存（避免每次翻页重复抓取 PC 页面）。 */
+    /** 评论接口 sn 令牌缓存（避免重复抓取 PC 页面）。 */
     private var commentSn: String? = null
 
     /**
@@ -78,27 +72,20 @@ class DetailViewModel(
         // 文章切换：清空评论相关缓存
         commentSn = null
         runLoad(request)
-        loadComments(url, reset = true)
+        loadComments(url)
     }
 
     fun retry() {
         lastRequest?.let {
             commentSn = null
             runLoad(it)
-            loadComments(it.url, reset = true)
+            loadComments(it.url)
         }
     }
 
-    /** 重新加载评论首页（供评论区错误重试使用）。 */
+    /** 重新加载评论（供评论区错误重试使用）。 */
     fun retryComments() {
-        lastRequest?.let { loadComments(it.url, reset = true) }
-    }
-
-    /** 加载下一页（更旧的）评论。 */
-    fun loadMoreComments() {
-        val state = _uiState.value
-        if (state.isLoadingMoreComments || !state.hasMoreComments) return
-        lastRequest?.let { loadComments(it.url, reset = false) }
+        lastRequest?.let { loadComments(it.url) }
     }
 
     /**
@@ -183,56 +170,30 @@ class DetailViewModel(
     /**
      * 加载评论。
      *
-     * @param reset true 表示重载首页（清空已有评论并重置游标）；
-     *              false 表示追加下一页。
+     * 说明：IT之家评论接口一次性返回全部评论（实测 `cid` 游标不会产生第二页），
+     * 因此这里只做单次全量加载，不做分页。
      */
-    private fun loadComments(url: String, reset: Boolean) {
-        val isFirstPage = reset || commentsCursor == "0"
-
-        if (reset) {
-            commentsJob?.cancel()
-            commentsCursor = "0"
-            _uiState.update {
-                it.copy(
-                    isCommentsLoading = true,
-                    isLoadingMoreComments = false,
-                    comments = emptyList(),
-                    hasMoreComments = false,
-                    commentsError = null,
-                    expandingCommentIds = emptySet()
-                )
-            }
-        } else {
-            if (loadMoreJob?.isActive == true) return
-            _uiState.update { it.copy(isLoadingMoreComments = true) }
+    private fun loadComments(url: String) {
+        commentsJob?.cancel()
+        _uiState.update {
+            it.copy(
+                isCommentsLoading = true,
+                comments = emptyList(),
+                commentsError = null,
+                expandingCommentIds = emptySet()
+            )
         }
 
-        val cursorToUse = if (reset) "0" else commentsCursor
-
-        val job = viewModelScope.launch {
-            val result = repository.getArticleComments(
-                url = url,
-                cursor = cursorToUse,
-                sn = commentSn
-            )
+        commentsJob = viewModelScope.launch {
+            val result = repository.getArticleComments(url = url, sn = commentSn)
 
             result.onSuccess { page ->
-                commentsCursor = page.nextCursor
                 if (page.sn.isNotBlank()) commentSn = page.sn
-                val hasMore = page.nextCursor.isNotEmpty() && page.comments.isNotEmpty()
 
                 _uiState.update { state ->
-                    val merged = if (isFirstPage) {
-                        page.comments
-                    } else {
-                        val existingIds = state.comments.mapTo(HashSet()) { it.id }
-                        state.comments + page.comments.filter { it.id !in existingIds }
-                    }
                     state.copy(
-                        comments = merged,
+                        comments = page.comments,
                         isCommentsLoading = false,
-                        isLoadingMoreComments = false,
-                        hasMoreComments = hasMore,
                         commentsError = null
                     )
                 }
@@ -240,17 +201,10 @@ class DetailViewModel(
                 _uiState.update {
                     it.copy(
                         isCommentsLoading = false,
-                        isLoadingMoreComments = false,
                         commentsError = error.localizedMessage ?: "评论加载失败"
                     )
                 }
             }
-        }
-
-        if (reset) {
-            commentsJob = job
-        } else {
-            loadMoreJob = job
         }
     }
 }

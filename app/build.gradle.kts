@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.necoarc.ityou"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.necoarc.ityou"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 10
         versionName = "1.7.1"
 

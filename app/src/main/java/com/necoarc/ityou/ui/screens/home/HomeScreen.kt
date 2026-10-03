@@ -17,15 +17,15 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.CloudOff
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -46,16 +46,12 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -105,7 +101,7 @@ fun HomeScreen(
             val text = if (refreshResult.newCount > 0) {
                 "已更新 ${refreshResult.newCount} 篇文章"
             } else {
-                "已是最新内容"
+                "已同步最新文章"
             }
             viewModel.consumeRefreshResult()
             snackbarHostState.showSnackbar(message = text)
@@ -124,8 +120,6 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             HomeTopBar(
-                isRefreshing = uiState.isRefreshing,
-                onRefreshClick = { viewModel.refresh() },
                 onSettingsClick = onSettingsClick
             )
         },
@@ -181,84 +175,35 @@ fun HomeScreen(
 }
 
 /**
- * 旋转刷新的刷新图标。
- *
- * MD3E 动效约定：
- * - 刷新中：**匀速无限旋转**（线性、无弹簧），表示「持续进行中」的确定性状态；
- * - 空闲时：停在当前角度，不做回摆，避免停止瞬间的方向反转。
- *
- * 实现说明（为什么不用 rememberInfiniteTransition）：
- * 无限动画的值在每圈结束时从 360 跳回 0，无论怎么组合（直接使用、
- * 或乘一个进度系数）都会在循环边界产生一次可见的**反向跳变**。
- * 因此这里改用 [withFrameNanos] 按帧累加角度：数值单调递增、永不回绕，
- * 从根源上消除回摆；停止时保留当前角度即可平滑收尾。
- */
-@Composable
-private fun AnimatedRefreshIcon(isRefreshing: Boolean) {
-    // 累加角度：仅在刷新中按帧推进；停止后保持不变（不回摆）
-    val rotation = remember { mutableFloatStateOf(0f) }
-    // 记录上一帧时间，用于按真实时间差换算角度，保证不同帧率下转速一致
-    var lastFrameNanos by remember { mutableLongStateOf(0L) }
-
-    LaunchedEffect(isRefreshing) {
-        if (!isRefreshing) {
-            lastFrameNanos = 0L
-            return@LaunchedEffect
-        }
-        while (true) {
-            withFrameNanos { now ->
-                if (lastFrameNanos != 0L) {
-                    val deltaSeconds = (now - lastFrameNanos) / 1_000_000_000f
-                    // 每秒旋转 400°（约 1.11 圈/秒），接近 MD3E 的「进行中」节奏。
-                    // 注意：这里**不做 % 360 取模**——取模会在数值回绕时造成反向跳变，
-                    // 而 Modifier.rotate 本身能正确处理任意大的角度值。
-                    rotation.floatValue += deltaSeconds * DEGREES_PER_SECOND
-                }
-                lastFrameNanos = now
-            }
-        }
-    }
-
-    Icon(
-        imageVector = Icons.Outlined.Refresh,
-        contentDescription = if (isRefreshing) "刷新中" else "刷新",
-        modifier = Modifier.rotate(rotation.floatValue)
-    )
-}
-
-/** 刷新图标的旋转速度（度/秒）。 */
-private const val DEGREES_PER_SECOND = 400f
-
-/**
  * MD3E 下拉刷新指示器。
  *
- * 替代 `PullToRefreshDefaults.Indicator` 的默认样式，使其与本应用的形状/配色体系一致：
- * - **形状**：胶囊形 [ShapeCache.smoothPill]，替代默认的 `CircleShape`
- *   （默认的圆形容器在本应用的「药丸化」形状语言里显得突兀）；
- * - **容器色**：`primaryContainer`，替代默认的 `surfaceContainerHigh`，
- *   让下拉动作带上品牌强调色；
- * - **动效**：阈值前后的状态切换用 [Motion.fadeInSpec] 弹簧，
- *   而非默认的固定时长 [androidx.compose.animation.Crossfade]，
- *   与全应用动效语言保持一致。
+ * 使用 Material 3 Expressive 的 [ContainedLoadingIndicator]：
+ * 它是一个「容器化」的加载指示器 —— 形状在彩色容器内持续形变（morph），
+ * 比传统的转圈进度条更符合 M3E 的表现力取向。
+ *
+ * - **容器形状**：胶囊形 [ShapeCache.smoothPill]，与本应用的形状语言统一；
+ * - **配色**：容器 `primaryContainer` + 指示器 `onPrimaryContainer`
+ *   （官方规范要求成对使用，保证对比度）；
+ * - **容器显隐**：仅在「拉过阈值」或刷新中才显示容器，
+ *   下拉过程中容器保持透明，避免未达阈值就给用户"已在刷新"的错觉。
  *
  * 实现说明：这里**直接使用 `Modifier.pullToRefreshIndicator`**，
  * 它内部已负责尺寸（40dp）、位移、裁剪与容器背景绘制，
  * 不要再外包一层 `Surface` 或自行 `.size()`，否则会与它冲突并导致定位错乱。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun Md3ePullToRefreshIndicator(
     state: PullToRefreshState,
     isRefreshing: Boolean,
     modifier: Modifier = Modifier
 ) {
-    // 仅在「拉过阈值」时才切换到"松手即可刷新"的视觉，给用户明确信号
+    // 仅在「拉过阈值」时才展示容器，给用户明确的"松手即可刷新"信号
     val active = isRefreshing || state.distanceFraction >= 1f
-    // 用弹簧驱动透明度，避免默认 Crossfade 的固定时长与全应用动效脱节
-    val contentAlpha by animateFloatAsState(
-        targetValue = if (active) 1f else 0.55f,
+    val containerAlpha by animateFloatAsState(
+        targetValue = if (active) 1f else 0f,
         animationSpec = Motion.fadeInSpec,
-        label = "ptrContentAlpha"
+        label = "ptrContainerAlpha"
     )
 
     Box(
@@ -267,37 +212,25 @@ private fun Md3ePullToRefreshIndicator(
             state = state,
             isRefreshing = isRefreshing,
             shape = ShapeCache.smoothPill,
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            // 容器背景由 pullToRefreshIndicator 绘制；这里传透明，
+            // 改由内部的 ContainedLoadingIndicator 自己画容器，
+            // 以便复用它的形状形变动效。
+            containerColor = Color.Transparent,
             elevation = PULL_TO_REFRESH_ELEVATION
         )
     ) {
-        if (isRefreshing) {
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .size(PULL_TO_REFRESH_SPINNER_SIZE)
-                    .alpha(contentAlpha),
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                strokeWidth = PULL_TO_REFRESH_STROKE
-            )
-        } else {
-            // 未松手：旋转箭头表示"继续下拉"，旋转量随下拉距离推进
-            Icon(
-                imageVector = Icons.Outlined.ArrowDownward,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = contentAlpha),
-                modifier = Modifier
-                    .size(PULL_TO_REFRESH_SPINNER_SIZE)
-                    .rotate(180f * state.distanceFraction.coerceIn(0f, 1f))
-            )
-        }
+        ContainedLoadingIndicator(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+                .copy(alpha = containerAlpha),
+            indicatorColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            containerShape = ShapeCache.smoothPill,
+            modifier = Modifier.size(PULL_TO_REFRESH_INDICATOR_SIZE)
+        )
     }
 }
 
-/** 指示器内图形尺寸。 */
-private val PULL_TO_REFRESH_SPINNER_SIZE = 20.dp
-
-/** 指示器描边粗细。 */
-private val PULL_TO_REFRESH_STROKE = 2.5.dp
+/** 指示器尺寸（与 pullToRefreshIndicator 的 40dp 容器留出内边距）。 */
+private val PULL_TO_REFRESH_INDICATOR_SIZE = 32.dp
 
 /** 指示器阴影海拔（与默认 Level2 保持一致）。 */
 private val PULL_TO_REFRESH_ELEVATION = 2.dp
@@ -305,8 +238,6 @@ private val PULL_TO_REFRESH_ELEVATION = 2.dp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeTopBar(
-    isRefreshing: Boolean,
-    onRefreshClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
     TopAppBar(
@@ -318,12 +249,6 @@ private fun HomeTopBar(
             )
         },
         actions = {
-            IconButton(
-                onClick = onRefreshClick,
-                enabled = !isRefreshing
-            ) {
-                AnimatedRefreshIcon(isRefreshing = isRefreshing)
-            }
             IconButton(onClick = onSettingsClick) {
                 Icon(imageVector = Icons.Outlined.Settings, contentDescription = "设置")
             }

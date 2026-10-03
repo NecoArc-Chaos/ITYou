@@ -281,7 +281,7 @@ object HtmlParser {
     /**
      * 从详情页 HTML 中提取 PC 评论接口所需的 `sn` 令牌。
      *
-     * PC 评论接口（`cmt.ithome.com/api/webcomment/*`）依赖 PC 页面内嵌的 `sn`：
+     * PC 评论接口（`cmt.ithome.com/api/webcomment/`）依赖 PC 页面内嵌的 `sn`：
      * ```html
      * <div id="post_comm" data-id="628f56baadfd8115"></div>
      * ```

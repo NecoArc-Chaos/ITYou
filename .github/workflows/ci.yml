@@ -53,6 +53,37 @@ jobs:
             --no-daemon \
             --stacktrace
 
+      - name: Report Test Results
+        if: always()
+        run: |
+          # 汇总各测试类的通过/失败数，避免测试被静默跳过（例如类名不匹配
+          # 或注解缺失）时 CI 仍然显示绿灯。
+          shopt -s nullglob
+          files=(app/build/test-results/testDebugUnitTest/TEST-*.xml)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::没有生成任何测试结果，测试可能未被执行"
+            exit 1
+          fi
+          total=0; failed=0
+          for f in "${files[@]}"; do
+            t=$(grep -o 'tests="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+            fl=$(grep -o 'failures="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+            er=$(grep -o 'errors="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+            name=$(basename "$f" .xml | sed 's/^TEST-//')
+            echo "$name: tests=${t} failures=${fl} errors=${er}"
+            total=$((total + t)); failed=$((failed + fl + er))
+          done
+          echo "总计：${total} 个用例，${failed} 个失败"
+          [ "$failed" -eq 0 ]
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-test-reports
+          path: app/build/test-results/testDebugUnitTest/
+          retention-days: 7
+
       - name: Build Signed Release APK (R8 + Baseline Profile)
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}

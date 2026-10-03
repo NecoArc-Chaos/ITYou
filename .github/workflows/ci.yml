@@ -64,6 +64,18 @@ jobs:
             --no-daemon \
             --stacktrace
 
+      - name: Resolve App Version
+        id: app_version
+        run: |
+          # 从 Gradle 读取 versionName，避免 CI 中硬编码版本号导致与构建产物不一致
+          APP_VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -n 1)
+          if [ -z "$APP_VERSION" ]; then
+            echo "::error::Failed to resolve versionName from app/build.gradle.kts"
+            exit 1
+          fi
+          echo "Resolved app version: v$APP_VERSION"
+          echo "version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Prepare Release Artifacts
         id: prepare_artifacts
         run: |
@@ -73,7 +85,8 @@ jobs:
             echo "::error::Release APK not found"
             exit 1
           fi
-          RELEASE_NAME="ITYou-v1.5.0-release.apk"
+          VERSION="${{ steps.app_version.outputs.version }}"
+          RELEASE_NAME="ITYou-v${VERSION}-release.apk"
           cp "$APK_SRC" "release_dist/$RELEASE_NAME"
           echo "apk_path=release_dist/$RELEASE_NAME" >> "$GITHUB_OUTPUT"
           echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
@@ -82,7 +95,7 @@ jobs:
       - name: Upload Release Artifact to Actions
         uses: actions/upload-artifact@v4
         with:
-          name: ITYou-v1.5.0-release-apk
+          name: ITYou-v${{ steps.app_version.outputs.version }}-release-apk
           path: release_dist/*
           retention-days: 14
 
@@ -90,25 +103,26 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.5.0-preview
-          name: "ITYou v1.5.0 (Pre-Release)"
+          tag_name: v${{ steps.app_version.outputs.version }}-preview
+          name: "ITYou v${{ steps.app_version.outputs.version }} (Pre-Release)"
           prerelease: true
           draft: false
           make_latest: false
           files: |
             release_dist/*
           body: |
-            ## ITYou v1.5.0 Pre-Release
+            ## ITYou v${{ steps.app_version.outputs.version }} Pre-Release
 
             本版本为开启了 R8 代码混淆、资源紧缩优化及 Baseline Profile 预编译的正式签名版本。
 
             ### 🚀 本次更新要点
+            - 💬 **文章评论区**：详情页新增真实评论流，含头像、昵称、地区楼层、时间与支持/反对数，正文支持长按选中复制；
+            - 📄 **评论游标分页**：底部「加载更多评论」按评论 id 游标按需拉取更早的评论；
+            - 🧵 **楼中楼回复**：回复默认折叠、一键展开，展示「回复 @某人」的引用关系；
+            - 📥 **按需加载剩余回复**：服务端报告仍有未内联回复时，可点击「展开另外 N 条」补齐；
+            - 🐛 **修复正文重复渲染**：PC 端页面结构导致的文章标题与「相关文章」标题重复出现问题；
             - 🔑 **独立正式签名打包**：采用 GitHub Actions Secrets 安全注入专用签名证书打出 Release APK；
-            - 🎨 **默认字体更新**：集成「丸子黑体 (Maruko Gothic)」，赋予全应用典雅圆润的 MD3 Expressive 中文排版；
-            - ⚙️ **系统字体切换**：设置页新增「使用系统字体」开关，随时自由回退至设备原生字型；
-            - 📰 **相关文章推荐**：文章详情页底部完美解析并渲染「相关文章」卡片流，支持点选跳转深度阅读；
-            - 🧹 **精简交互**：移除首页未实装的顶栏搜索按钮；
-            - ⚡ **卡片等高与骨架屏契约对齐**：统一几何推导，彻底消除滑动抖动与结构漂移。
+            - 🎨 **默认字体更新**：集成「丸子黑体 (Maruko Gothic)」，赋予全应用典雅圆润的 MD3 Expressive 中文排版。
 
             ### 📦 文件校验
             发布包包含已签名的正式 Release APK，附带 SHA-256 完整性校验文件。

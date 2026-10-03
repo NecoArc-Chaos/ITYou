@@ -245,6 +245,7 @@ private const val DEGREES_PER_SECOND = 400f
  * 它内部已负责尺寸（40dp）、位移、裁剪与容器背景绘制，
  * 不要再外包一层 `Surface` 或自行 `.size()`，否则会与它冲突并导致定位错乱。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Md3ePullToRefreshIndicator(
     state: PullToRefreshState,

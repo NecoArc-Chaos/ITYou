@@ -34,10 +34,22 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v1.7.0",
+        releaseDate = "2026-10-03",
+        summary = "首页新增下拉刷新手势与刷新旋转动效，刷新完成提示更新条数；设置页版本号改为跟随构建自动读取。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FEATURE, "首页支持下拉刷新手势，松手即拉取最新内容"),
+            ChangeItem(ChangeType.FEATURE, "顶栏刷新按钮新增匀速旋转动效，刷新中直观反馈进行状态"),
+            ChangeItem(ChangeType.FEATURE, "刷新完成后提示「已更新 N 篇文章」，无新内容时提示「已是最新内容」"),
+            ChangeItem(ChangeType.FIX, "设置页版本号此前硬编码为 v1.4.0，现改为读取构建信息，随版本自动更新")
+        )
+    ),
+    ReleaseNote(
         version = "v1.6.0",
         releaseDate = "2026-10-03",
         summary = "新增文章评论区：表情渲染、楼中楼展开动画与按需加载剩余回复，并修复详情页标题/「相关文章」重复渲染问题。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "文章详情页新增评论区：展示真实评论（头像、昵称、楼层、时间、支持/反对数）"),
             ChangeItem(ChangeType.FEATURE, "评论表情渲染：`[坏笑]` 等颜文字转为内联图片，与文字同段落混排"),

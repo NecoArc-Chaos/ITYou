@@ -12,8 +12,8 @@ android {
         applicationId = "com.necoarc.ityou"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.6.0"
+        versionCode = 9
+        versionName = "1.7.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -57,6 +57,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // 供设置页读取 versionName 构建信息，避免版本号在代码里硬编码后与 build.gradle 漂移
+        buildConfig = true
     }
     testOptions {
         unitTests.isReturnDefaultValues = true

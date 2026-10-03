@@ -23,17 +23,28 @@ import kotlinx.coroutines.launch
 data class HomeUiState(
     val isLoading: Boolean = true,
     val isLoadingMore: Boolean = false,
+    val isRefreshing: Boolean = false,
     val hasMore: Boolean = true,
     val articles: List<Article> = emptyList(),
     val selectedCategory: ArticleCategory = ArticleCategory.ALL,
     val errorMessage: String? = null,
-    val loadMoreFailed: Boolean = false
+    val loadMoreFailed: Boolean = false,
+    /** 最近一次刷新新增的文章数；null 表示本次刷新没有可提示的结果。 */
+    val refreshResult: RefreshResult? = null
 ) {
     /** 是否展示整屏骨架：仅在「首次加载 / 切换分类」这种列表为空的情况下展示，刷新时不闪屏。 */
     val showFullScreenSkeleton: Boolean get() = isLoading && articles.isEmpty() && errorMessage == null
 
     val isEmpty: Boolean get() = !isLoading && articles.isEmpty() && errorMessage == null
 }
+
+/**
+ * 一次刷新的结果，用于向用户展示「更新了几篇文章」。
+ *
+ * 作为一次性事件由 UI 消费后清空；[newCount] 为 0 表示没有新内容。
+ */
+@Immutable
+data class RefreshResult(val newCount: Int)
 
 class HomeViewModel(
     private val repository: ArticleRepository = ArticleRepository()
@@ -52,9 +63,14 @@ class HomeViewModel(
         loadFirstPage(clearExisting = true)
     }
 
-    /** 顶栏刷新：保留当前列表，避免整屏闪骨架。 */
+    /** 顶栏刷新：保留当前列表，避免整屏闪骨架；完成后报告新增文章数。 */
     fun refresh() {
-        loadFirstPage(clearExisting = false)
+        loadFirstPage(clearExisting = false, isRefresh = true)
+    }
+
+    /** 消费掉刷新结果（提示展示完毕后调用，避免重复弹提示）。 */
+    fun consumeRefreshResult() {
+        _uiState.update { it.copy(refreshResult = null) }
     }
 
     /** 触底加载更多。重复调用是安全的（内部有状态守卫）。 */
@@ -100,18 +116,27 @@ class HomeViewModel(
         loadFirstPage(clearExisting = true)
     }
 
-    private fun loadFirstPage(clearExisting: Boolean) {
+    private fun loadFirstPage(clearExisting: Boolean, isRefresh: Boolean = false) {
         firstPageJob?.cancel()
         loadMoreJob?.cancel()
 
         firstPageJob = viewModelScope.launch {
+            // 记住刷新前的头条 id 快照，用于计算「更新了几篇」
+            val previousIds = if (isRefresh) {
+                _uiState.value.articles.mapTo(HashSet()) { it.id }
+            } else {
+                null
+            }
+
             _uiState.update { current ->
                 current.copy(
-                    isLoading = true,
+                    isLoading = !isRefresh,
+                    isRefreshing = isRefresh,
                     isLoadingMore = false,
                     loadMoreFailed = false,
                     errorMessage = null,
                     hasMore = true,
+                    refreshResult = null,
                     articles = if (clearExisting) emptyList() else current.articles
                 )
             }
@@ -122,17 +147,28 @@ class HomeViewModel(
 
             result.onSuccess { page ->
                 cursor = page.nextCursor
+                // 仅在刷新场景计算新增数量：本次返回里不属于上一份快照的条目
+                val newCount = previousIds?.let { old ->
+                    page.articles.count { it.id !in old }
+                }
                 _uiState.update { current ->
                     current.copy(
                         isLoading = false,
+                        isRefreshing = false,
                         articles = page.articles,
-                        hasMore = page.hasMore
+                        hasMore = page.hasMore,
+                        refreshResult = if (isRefresh && newCount != null) {
+                            RefreshResult(newCount = newCount)
+                        } else {
+                            null
+                        }
                     )
                 }
             }.onFailure { error ->
                 _uiState.update { current ->
                     current.copy(
                         isLoading = false,
+                        isRefreshing = false,
                         hasMore = false,
                         errorMessage = error.localizedMessage ?: "加载失败，请稍后重试"
                     )

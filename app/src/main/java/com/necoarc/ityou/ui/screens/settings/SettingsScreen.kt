@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.necoarc.ityou.BuildConfig
 import com.necoarc.ityou.data.model.BackAnimationType
 import com.necoarc.ityou.ui.components.VersionTimelineSheet
 import com.necoarc.ityou.ui.theme.BUNDLED_FONT_NAME
@@ -467,7 +468,7 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Text(
-                                text = "v1.4.0 (Release)",
+                                text = "v${BuildConfig.VERSION_NAME}",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,

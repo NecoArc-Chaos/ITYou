@@ -30,17 +30,26 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -68,6 +77,7 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // 触底预加载：使用 snapshotFlow 收集尾部可见项，避免每帧读取 layoutInfo 触发额外重组
     LaunchedEffect(listState) {
@@ -81,13 +91,29 @@ fun HomeScreen(
             }
     }
 
+    // 刷新完成提示：消费一次性事件，展示「更新了 N 篇」后清空，避免旋转/重组时重复弹出
+    val refreshResult = uiState.refreshResult
+    LaunchedEffect(refreshResult) {
+        if (refreshResult != null) {
+            val text = if (refreshResult.newCount > 0) {
+                "已更新 ${refreshResult.newCount} 篇文章"
+            } else {
+                "已是最新内容"
+            }
+            viewModel.consumeRefreshResult()
+            snackbarHostState.showSnackbar(message = text)
+        }
+    }
+
     Scaffold(
         topBar = {
             HomeTopBar(
+                isRefreshing = uiState.isRefreshing,
                 onRefreshClick = { viewModel.refresh() },
                 onSettingsClick = onSettingsClick
             )
         },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier
     ) { innerPadding ->
@@ -105,18 +131,77 @@ fun HomeScreen(
             }
 
             else -> {
-                HomeArticleList(
-                    uiState = uiState,
-                    listState = listState,
-                    windowInsetsPadding = innerPadding,
-                    onArticleClick = onArticleClick,
-                    onCategorySelected = viewModel::selectCategory,
-                    onRetryLoadMore = viewModel::retryLoadMore
-                )
+                // 下拉刷新：仅包裹列表区域（骨架屏/错误页无需下拉）
+                PullToRefreshBox(
+                    isRefreshing = uiState.isRefreshing,
+                    onRefresh = { viewModel.refresh() },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    HomeArticleList(
+                        uiState = uiState,
+                        listState = listState,
+                        // 内边距已由外层 PullToRefreshBox 消费，这里不再重复应用
+                        windowInsetsPadding = PaddingValues(0.dp),
+                        onArticleClick = onArticleClick,
+                        onCategorySelected = viewModel::selectCategory,
+                        onRetryLoadMore = viewModel::retryLoadMore
+                    )
+                }
             }
         }
     }
 }
+
+/**
+ * 旋转刷新的刷新图标。
+ *
+ * MD3E 动效约定：
+ * - 刷新中：**匀速无限旋转**（线性、无弹簧），表示「持续进行中」的确定性状态；
+ * - 空闲时：停在当前角度，不做回摆，避免停止瞬间的方向反转。
+ *
+ * 实现说明（为什么不用 rememberInfiniteTransition）：
+ * 无限动画的值在每圈结束时从 360 跳回 0，无论怎么组合（直接使用、
+ * 或乘一个进度系数）都会在循环边界产生一次可见的**反向跳变**。
+ * 因此这里改用 [withFrameNanos] 按帧累加角度：数值单调递增、永不回绕，
+ * 从根源上消除回摆；停止时保留当前角度即可平滑收尾。
+ */
+@Composable
+private fun AnimatedRefreshIcon(isRefreshing: Boolean) {
+    // 累加角度：仅在刷新中按帧推进；停止后保持不变（不回摆）
+    val rotation = remember { mutableFloatStateOf(0f) }
+    // 记录上一帧时间，用于按真实时间差换算角度，保证不同帧率下转速一致
+    var lastFrameNanos by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(isRefreshing) {
+        if (!isRefreshing) {
+            lastFrameNanos = 0L
+            return@LaunchedEffect
+        }
+        while (true) {
+            withFrameNanos { now ->
+                if (lastFrameNanos != 0L) {
+                    val deltaSeconds = (now - lastFrameNanos) / 1_000_000_000f
+                    // 每秒旋转 400°（约 1.11 圈/秒），接近 MD3E 的「进行中」节奏。
+                    // 注意：这里**不做 % 360 取模**——取模会在数值回绕时造成反向跳变，
+                    // 而 Modifier.rotate 本身能正确处理任意大的角度值。
+                    rotation.floatValue += deltaSeconds * DEGREES_PER_SECOND
+                }
+                lastFrameNanos = now
+            }
+        }
+    }
+
+    Icon(
+        imageVector = Icons.Outlined.Refresh,
+        contentDescription = if (isRefreshing) "刷新中" else "刷新",
+        modifier = Modifier.rotate(rotation.floatValue)
+    )
+}
+
+/** 刷新图标的旋转速度（度/秒）。 */
+private const val DEGREES_PER_SECOND = 400f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

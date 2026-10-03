@@ -206,6 +206,7 @@ private const val DEGREES_PER_SECOND = 400f
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeTopBar(
+    isRefreshing: Boolean,
     onRefreshClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
@@ -218,8 +219,11 @@ private fun HomeTopBar(
             )
         },
         actions = {
-            IconButton(onClick = onRefreshClick) {
-                Icon(imageVector = Icons.Outlined.Refresh, contentDescription = "刷新")
+            IconButton(
+                onClick = onRefreshClick,
+                enabled = !isRefreshing
+            ) {
+                AnimatedRefreshIcon(isRefreshing = isRefreshing)
             }
             IconButton(onClick = onSettingsClick) {
                 Icon(imageVector = Icons.Outlined.Settings, contentDescription = "设置")

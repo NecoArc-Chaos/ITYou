@@ -88,7 +88,7 @@ ITYou/
 ## 📦 下载与体验
 
 - **运行要求**：Android 8.0 (API 26) 及以上，推荐 Android 14+ 以获得最佳预见式返回动效。
-- **下载安装**：前往仓库的 [**Releases 页面**](https://github.com/NecoArc-Chaos/ITYou/releases) 获取最新的 Pre-Release 安装包（`ITYou-v1.9.1-release.apk`，内置 R8 深度混淆与 Baseline Profile 优化）。
+- **下载安装**：前往仓库的 [**Releases 页面**](https://github.com/NecoArc-Chaos/ITYou/releases) 获取最新的 Pre-Release 安装包（`ITYou-v1.9.2-release.apk`，内置 R8 深度混淆与 Baseline Profile 优化）。
 
 ---
 

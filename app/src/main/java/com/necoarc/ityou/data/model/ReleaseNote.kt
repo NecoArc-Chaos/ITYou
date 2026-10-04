@@ -34,10 +34,21 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v1.9.2",
+        releaseDate = "2026-10-04",
+        summary = "彻底修复下拉刷新拿不到最新文章的问题：根因在上游 CDN，现已从请求地址层面绕过。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FIX, "刷新后固定滞后约 20 分钟、漏掉数篇文章的问题已修复"),
+            ChangeItem(ChangeType.FIX, "首屏与刷新改为携带时间游标请求，避免命中服务端 CDN 的固定缓存"),
+            ChangeItem(ChangeType.IMPROVEMENT, "新增请求地址构造的回归测试，锁定该行为不再退化")
+        )
+    ),
+    ReleaseNote(
         version = "v1.9.1",
         releaseDate = "2026-10-04",
         summary = "修复下拉刷新拿不到最新文章的问题；刷新与失败提示改用系统 Toast。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FIX, "下拉刷新不再命中资讯接口缓存，确保每次刷新都拉取服务端最新列表"),
             ChangeItem(ChangeType.IMPROVEMENT, "刷新结果与失败提示改为系统 Toast，不再打断操作、也不再遮挡内容"),

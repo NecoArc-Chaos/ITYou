@@ -43,12 +43,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -84,7 +85,14 @@ fun SettingsScreen(
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // `rememberModalBottomSheetState` 已废弃，官方替代：
+    // rememberBottomSheetState(initialValue = Hidden, enabledValues = ...)
+    // 原 `skipPartiallyExpanded = true` 对应「不得停留在半展开」，
+    // 即 enabledValues 里去掉 PartiallyExpanded。
+    val sheetState = rememberBottomSheetState(
+        initialValue = SheetValue.Hidden,
+        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)
+    )
 
     val fontPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()

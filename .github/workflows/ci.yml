@@ -31,9 +31,9 @@ jobs:
       - name: Setup Gradle
         # 固定 v5：v6 起 Gradle 缓存组件转为专有商业许可（gradle.com/legal/terms-of-use），
         # 本项目为 MIT 开源，故停留在最后一个完全 MIT 的版本（v5 已升级至 node24）。
+        # 不指定 gradle-version：交由 gradle/wrapper 决定，避免与 wrapper 版本漂移。
         uses: gradle/actions/setup-gradle@v5
         with:
-          gradle-version: 9.0
           cache-read-only: false
 
       - name: Decode Release Keystore
@@ -46,7 +46,7 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          gradle testDebugUnitTest \
+          ./gradlew testDebugUnitTest \
             --parallel \
             --build-cache \
             --max-workers=4 \
@@ -90,7 +90,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          gradle assembleRelease \
+          ./gradlew assembleRelease \
             --parallel \
             --build-cache \
             --max-workers=4 \

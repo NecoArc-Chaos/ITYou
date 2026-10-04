@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Settings
@@ -117,6 +118,7 @@ private val NOTICE_ICON_PADDING = 12.dp
 fun HomeScreen(
     onArticleClick: (articleId: String, url: String, title: String, author: String, pubTime: String) -> Unit,
     onSettingsClick: () -> Unit,
+    onFavoritesClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = viewModel()
 ) {
@@ -192,7 +194,8 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             HomeTopBar(
-                onSettingsClick = onSettingsClick
+                onSettingsClick = onSettingsClick,
+                onFavoritesClick = onFavoritesClick
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
@@ -282,7 +285,8 @@ private fun Md3ePullToRefreshIndicator(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeTopBar(
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onFavoritesClick: () -> Unit
 ) {
     TopAppBar(
         title = {
@@ -293,6 +297,9 @@ private fun HomeTopBar(
             )
         },
         actions = {
+            IconButton(onClick = onFavoritesClick) {
+                Icon(imageVector = Icons.Outlined.BookmarkBorder, contentDescription = "我的收藏")
+            }
             IconButton(onClick = onSettingsClick) {
                 Icon(imageVector = Icons.Outlined.Settings, contentDescription = "设置")
             }

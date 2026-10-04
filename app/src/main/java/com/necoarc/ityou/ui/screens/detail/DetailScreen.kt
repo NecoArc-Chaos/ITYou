@@ -48,6 +48,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -62,6 +64,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -75,7 +78,10 @@ import coil.compose.AsyncImage
 import com.necoarc.ityou.data.model.ArticleComment
 import com.necoarc.ityou.data.model.ArticleDetail
 import com.necoarc.ityou.data.model.ContentBlock
+import com.necoarc.ityou.data.model.FavoriteArticle
 import com.necoarc.ityou.data.model.RelatedArticle
+import com.necoarc.ityou.data.repository.FavoriteRepository
+import com.necoarc.ityou.data.share.ArticleSharer
 import com.necoarc.ityou.ui.components.CommentEmojiText
 import com.necoarc.ityou.ui.components.DetailSkeletonScreen
 import com.necoarc.ityou.ui.theme.Dimens
@@ -97,9 +103,19 @@ fun DetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    val favoriteRepository = remember(context) { FavoriteRepository.getInstance(context) }
     val listState = rememberLazyListState()
 
-    var isStarred by remember { mutableStateOf(false) }
+    // 收藏状态以仓库为**唯一数据源**：不再用本地 remember 变量，
+    // 否则退出页面即丢失，且列表页与详情页会显示不一致。
+    val favorites by favoriteRepository.favorites.collectAsStateWithLifecycle()
+    val isStarred = favorites.any { it.id == articleId }
+
+    // 收藏/取消的反馈提示。用 Snackbar 而非 Toast：
+    // Snackbar 跟随主题着色与形状语言，且在本页已经有 Scaffold 承载。
+    val snackbarHostState = remember { SnackbarHostState() }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(articleId, articleUrl) {
         viewModel.loadArticleDetail(
@@ -109,6 +125,20 @@ fun DetailScreen(
             previewAuthor = previewAuthor,
             previewPubTime = previewPubTime
         )
+    }
+
+    // 分享 / 收藏优先使用详情加载后的真实数据，未加载完时回退到列表页传入的预览数据，
+    // 这样即使详情还在加载，顶栏按钮也是可用的。
+    val detail = uiState.detail
+    val shareTitle = detail?.title?.takeIf { it.isNotBlank() } ?: previewTitle
+    val shareUrl = detail?.originalUrl?.takeIf { it.isNotBlank() } ?: articleUrl
+
+    // 先赋值再消费，避免 LaunchedEffect 因状态被提前清空而以 null 重启
+    LaunchedEffect(toastMessage) {
+        toastMessage?.let { message ->
+            snackbarHostState.showSnackbar(message = message)
+            toastMessage = null
+        }
     }
 
     Scaffold(
@@ -132,10 +162,27 @@ fun DetailScreen(
                             )
                         }
                     }
-                    IconButton(onClick = { isStarred = !isStarred }) {
+                    IconButton(
+                        onClick = {
+                            // 收藏项以 id 为主键，id 为空时不写入，避免产生无法取消的幽灵数据
+                            if (articleId.isNotBlank()) {
+                                val nowFavorited = favoriteRepository.toggleFavorite(
+                                    FavoriteArticle(
+                                        id = articleId,
+                                        title = shareTitle,
+                                        author = detail?.author ?: previewAuthor,
+                                        pubTime = detail?.publishTime ?: previewPubTime,
+                                        url = shareUrl,
+                                        favoritedAt = System.currentTimeMillis()
+                                    )
+                                )
+                                toastMessage = if (nowFavorited) "已加入收藏" else "已取消收藏"
+                            }
+                        }
+                    ) {
                         Icon(
                             imageVector = if (isStarred) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder,
-                            contentDescription = "收藏",
+                            contentDescription = if (isStarred) "取消收藏" else "收藏",
                             tint = if (isStarred) {
                                 MaterialTheme.colorScheme.primary
                             } else {
@@ -143,7 +190,19 @@ fun DetailScreen(
                             }
                         )
                     }
-                    IconButton(onClick = {}) {
+                    IconButton(
+                        onClick = {
+                            if (shareUrl.isNotBlank()) {
+                                ArticleSharer.share(
+                                    context = context,
+                                    title = shareTitle,
+                                    url = shareUrl
+                                )
+                            } else {
+                                toastMessage = "链接尚未就绪，请稍后再试"
+                            }
+                        }
+                    ) {
                         Icon(
                             imageVector = Icons.Outlined.Share,
                             contentDescription = "分享"
@@ -156,6 +215,7 @@ fun DetailScreen(
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         modifier = modifier
     ) { innerPadding ->
         val detail = uiState.detail

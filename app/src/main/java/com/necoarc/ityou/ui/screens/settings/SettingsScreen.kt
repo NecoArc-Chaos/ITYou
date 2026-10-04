@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.FontDownload
 import androidx.compose.material.icons.outlined.History
@@ -47,6 +48,7 @@ import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberBottomSheetState
@@ -69,6 +71,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.necoarc.ityou.BuildConfig
 import com.necoarc.ityou.data.model.BackAnimationType
 import com.necoarc.ityou.ui.components.VersionTimelineSheet
+import com.necoarc.ityou.ui.theme.BUNDLED_FONT_CREDIT
 import com.necoarc.ityou.ui.theme.BUNDLED_FONT_NAME
 import com.necoarc.ityou.ui.theme.ShapeCache
 import com.necoarc.ityou.ui.theme.resolveFontFamily
@@ -345,6 +348,46 @@ fun SettingsScreen(
                         }
                     }
 
+                    // 内置字体致谢：仅在真正使用内置字体时展示，避免与其他字体状态混淆。
+                    // 字体以 SIL OFL 1.1 授权分发，这里给出出处既是致谢，也方便用户自行获取。
+                    if (!uiState.useSystemFont && uiState.customFontPath == null) {
+                        Surface(
+                            shape = ShapeCache.smooth12,
+                            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.FavoriteBorder,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = BUNDLED_FONT_CREDIT,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(
+                                    onClick = {
+                                        uriHandler.openUri(FONT_SOURCE_URL)
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "字体主页",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // 动态即时排版字型展示盒
                     val previewFontFamily: FontFamily = remember(uiState.useSystemFont, uiState.customFontPath) {
                         resolveFontFamily(
@@ -488,7 +531,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
-                        text = "基于 Android 14+ 预见式预测返回、内置丸子黑体与纯 Compose 渲染构建的现代科技新闻阅读器。",
+                        text = "基于 Android 14+ 预见式预测返回、内置馬路口圓體与纯 Compose 渲染构建的现代科技新闻阅读器。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -703,3 +746,6 @@ private fun formatFileSize(bytes: Long): String {
         String.format(Locale.US, "%.1f KB", kb)
     }
 }
+
+/** 内置字体（馬路口圓體）的项目主页。 */
+private const val FONT_SOURCE_URL = "https://github.com/max32002/maruko-gothic"

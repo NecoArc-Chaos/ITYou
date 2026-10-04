@@ -17,7 +17,7 @@ data class UserSettings(
     val dynamicColorEnabled: Boolean = true,
     val highQualityImage: Boolean = true,
     val backAnimation: BackAnimationType = BackAnimationType.SPRING_SLIDE,
-    /** 是否强制使用系统默认字体，若为 false 则优先使用自定义字体或工程内置默认字体（丸子黑体） */
+    /** 是否强制使用系统默认字体，若为 false 则优先使用自定义字体或工程内置默认字体（馬路口圓體） */
     val useSystemFont: Boolean = false,
     val customFontName: String? = null,
     val customFontPath: String? = null,

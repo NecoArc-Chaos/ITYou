@@ -11,7 +11,12 @@ import java.io.File
 
 /** 内置默认表现型字体的 Assets 路径 */
 const val BUNDLED_FONT_ASSET_PATH = "fonts/MarukoGothicCJKsc-Medium.ttf"
-const val BUNDLED_FONT_NAME = "丸子黑体 (Maruko Gothic)"
+
+/** 内置字体展示名。注意：Maruko Gothic 是「圓體」而非黑体。 */
+const val BUNDLED_FONT_NAME = "馬路口圓體 (Maruko Gothic)"
+
+/** 内置字体作者与来源，用于设置页致谢。 */
+const val BUNDLED_FONT_CREDIT = "Max · max32002/maruko-gothic · SIL OFL 1.1"
 
 /** 已解析字体家族缓存，避免主线程每帧或每次重组重复解析 Typeface */
 private val fontFamilyCache = mutableMapOf<String, FontFamily>()
@@ -22,7 +27,7 @@ private val fontFamilyCache = mutableMapOf<String, FontFamily>()
  * 优先级逻辑：
  * 1. 若 [useSystemFont] 为 true：用户显式指定使用系统字体，直接返回 [FontFamily.Default]。
  * 2. 若用户安装了本地自定义字体文件且可用，优先返回用户安装的字体。
- * 3. 默认情况下，加载随包内置的「丸子黑体」[BUNDLED_FONT_ASSET_PATH]，
+ * 3. 默认情况下，加载随包内置的「馬路口圓體」[BUNDLED_FONT_ASSET_PATH]，
  *    使全应用默认呈现优雅圆润的 MD3 Expressive 视觉。
  * 4. 出现任何异常安全回退到系统字体。
  */
@@ -54,7 +59,7 @@ fun resolveFontFamily(
         }
     }
 
-    // 2. 默认加载工程内置资产字体：丸子黑体
+    // 2. 默认加载工程内置资产字体：馬路口圓體
     val bundledCacheKey = "bundled|$BUNDLED_FONT_ASSET_PATH"
     synchronized(fontFamilyCache) {
         fontFamilyCache[bundledCacheKey]?.let { return it }

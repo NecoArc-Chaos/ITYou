@@ -29,6 +29,7 @@ import androidx.navigation.navArgument
 import com.necoarc.ityou.data.model.BackAnimationType
 import com.necoarc.ityou.data.repository.SettingsRepository
 import com.necoarc.ityou.ui.screens.detail.DetailScreen
+import com.necoarc.ityou.ui.screens.favorites.FavoritesScreen
 import com.necoarc.ityou.ui.screens.home.HomeScreen
 import com.necoarc.ityou.ui.screens.settings.SettingsScreen
 import com.necoarc.ityou.ui.theme.ITYouTheme
@@ -50,7 +51,7 @@ class MainActivity : ComponentActivity() {
 
             // 性能要点：resolveFontFamily 需要读资产/文件并解析字体表，
             // 必须 remember，避免每次普通重组都重复构建 Typeface。
-            // 默认加载工程内置资产（丸子黑体），同时支持用户选择系统字体或自定义字体。
+            // 默认加载工程内置资产（馬路口圓體），同时支持用户选择系统字体或自定义字体。
             val dynamicFontFamily = remember(settings.useSystemFont, settings.customFontPath) {
                 resolveFontFamily(
                     context = context,
@@ -126,6 +127,9 @@ fun ITYouNavApp(backAnimation: BackAnimationType) {
                 },
                 onSettingsClick = {
                     navController.navigate("settings")
+                },
+                onFavoritesClick = {
+                    navController.navigate("favorites")
                 }
             )
         }
@@ -243,6 +247,40 @@ fun ITYouNavApp(backAnimation: BackAnimationType) {
             SettingsScreen(
                 onBackClick = {
                     navController.popBackStack()
+                }
+            )
+        }
+
+        composable(
+            route = "favorites",
+            enterTransition = {
+                when (backAnimation) {
+                    BackAnimationType.SPRING_SLIDE -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, navSpring) + fadeIn()
+                    BackAnimationType.CONTAINER_SCALE -> scaleIn(initialScale = 0.90f, animationSpec = scaleSpring) + fadeIn()
+                    BackAnimationType.SUBTLE_FADE -> fadeIn(animationSpec = tween(220))
+                    BackAnimationType.DRAWER_LIFT -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Up, navSpring) + fadeIn()
+                }
+            },
+            popExitTransition = {
+                when (backAnimation) {
+                    BackAnimationType.SPRING_SLIDE -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, navSpring) + fadeOut()
+                    BackAnimationType.CONTAINER_SCALE -> scaleOut(targetScale = 0.90f, animationSpec = scaleSpring) + fadeOut()
+                    BackAnimationType.SUBTLE_FADE -> fadeOut(animationSpec = tween(180))
+                    BackAnimationType.DRAWER_LIFT -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, navSpring) + fadeOut()
+                }
+            }
+        ) {
+            FavoritesScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onArticleClick = { articleId, url, title, author, pubTime ->
+                    // 复用与首页相同的详情路由，保证从收藏进入的详情页行为一致
+                    val encodedUrl = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
+                    val encodedTitle = URLEncoder.encode(title, StandardCharsets.UTF_8.toString())
+                    val encodedAuthor = URLEncoder.encode(author, StandardCharsets.UTF_8.toString())
+                    val encodedPubTime = URLEncoder.encode(pubTime, StandardCharsets.UTF_8.toString())
+                    navController.navigate("detail/$articleId?url=$encodedUrl&title=$encodedTitle&author=$encodedAuthor&pubTime=$encodedPubTime")
                 }
             )
         }

@@ -1,8 +1,6 @@
 package com.necoarc.ityou.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -32,8 +29,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -65,8 +60,14 @@ fun VersionTimelineSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // 仅保留左右内边距。
+                //
+                // 这里**不能**再手写 `padding(bottom = ...)`：
+                // ModalBottomSheet 已通过 `contentWindowInsets`（默认
+                // BottomSheetDefaults.modalWindowInsets = safeDrawing 的上下边）
+                // 处理了导航栏 / 手势条的安全区，
+                // 手写 bottom padding 会与之叠加，把最后一版内容顶出可视区。
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp)
         ) {
             // 抽屉头部
             Row(
@@ -114,10 +115,18 @@ fun VersionTimelineSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 时间轴列表
+            // 时间轴列表。
+            //
+            // `weight(1f)` 是这里的关键：LazyColumn 在无高度约束时会按内容
+            // 无限撑高，既无法滚动、也拿不到 overscroll 回弹效果，
+            // 同时会把尾部内容挤出屏幕底部。
+            // 加上权重后它被约束在剩余空间内，滚动、回弹与安全区才都正常。
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxWidth()
+                contentPadding = PaddingValues(bottom = TimelineListBottomPadding),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             ) {
                 items(AppReleaseHistory) { release ->
                     TimelineReleaseCard(release = release)
@@ -126,6 +135,15 @@ fun VersionTimelineSheet(
         }
     }
 }
+
+/**
+ * 时间轴列表底部内边距。
+ *
+ * 给滚动内容的末尾留出呼吸空间，避免最后一张卡片贴着安全区边缘；
+ * 这是**滚动内容内部的 padding**，与已移除的容器 bottom padding 不同，
+ * 不会与系统栏安全区叠加挤压布局。
+ */
+private val TimelineListBottomPadding = 24.dp
 
 /**
  * 单个版本的可视化时间轴卡片

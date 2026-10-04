@@ -30,7 +30,13 @@ data class RawNewsPage(
     val hasMore: Boolean = true
 )
 
-open class ArticleRepository {
+open class ArticleRepository(
+    /**
+     * 时钟。抽成可注入的依赖以便单元测试断言 URL 中的游标，
+     * 而不是让 `System.currentTimeMillis()` 直接把行为变成不可验证的。
+     */
+    private val clock: () -> Long = System::currentTimeMillis
+) {
 
     private val client get() = NetworkClient.client
 
@@ -283,18 +289,36 @@ open class ArticleRepository {
             "?commentId=$commentId&sn=$sn&appver=900"
 
 
+    /**
+     * 从资讯接口拉取一页原始数据。
+     *
+     * **关于 `ot` 参数（重要，修复历史缺陷）：**
+     * 该接口把 `ot` 当作「由此时间点往回取一页」的游标，
+     * 同时服务端（腾讯云 BLB）的 CDN **以完整 URL 作为缓存键**。
+     *
+     * 早期实现在首页请求时**省略** `ot`，请求裸地址，
+     * 于是命中 CDN 缓存、固定返回约 20 分钟前的旧列表 ——
+     * 表现为「下拉刷新了，但拿不到最新文章」，且每次领先/滞后
+     * 的篇数不定（实测滞后 5~6 篇）。
+     * 仅靠客户端缓存策略（OkHttp）无法解决，因为问题出在上游 CDN。
+     *
+     * 因此这里**始终带上 `ot`**：首页用当前时间戳，
+     * 既保证语义正确（从此刻往回取），又让 URL 唯一从而绕过 CDN 缓存。
+     *
+     * @param cursor 0 表示首页；否则为上一页返回的 [ArticlePage.nextCursor]
+     */
     private suspend fun fetchRawPageFromApi(
         cursor: Long,
         forceRefresh: Boolean = false
     ): RawNewsPage = withContext(Dispatchers.IO) {
-        val url = if (cursor > 0L) "$NEWS_LIST_API?ot=$cursor" else NEWS_LIST_API
+        val url = buildNewsListUrl(cursor = cursor, now = clock())
         val requestBuilder = Request.Builder()
             .url(url)
             .header("User-Agent", NetworkClient.USER_AGENT)
             .header("Referer", "https://m.ithome.com/")
 
         // 刷新场景要求回源：给拦截器一个显式标记，
-        // 否则该接口的 60 秒短缓存会让刷新拿到旧数据。
+        // 避免命中客户端 OkHttp 缓存（上游 CDN 已由上面的 ot 参数处理）。
         if (forceRefresh) {
             requestBuilder.header(NetworkClient.HEADER_FORCE_REFRESH, "1")
         }
@@ -340,6 +364,22 @@ open class ArticleRepository {
     companion object {
         private const val NEWS_LIST_API = "https://m.ithome.com/api/news/newslistpageget"
         private const val RSS_FEED = "https://www.ithome.com/rss/"
+
+        /**
+         * 构造资讯列表请求 URL（纯函数，便于单元测试）。
+         *
+         * **必须始终带 `ot`**：上游 CDN 以完整 URL 为缓存键，
+         * 首屏若请求裸地址会被缓存固定住约 20 分钟，导致刷新拿不到新文章。
+         * 首页（`cursor <= 0`）用「当前时间」作为游标，
+         * 既语义正确（从此刻往回取）又让 URL 唯一从而回源。
+         *
+         * @param cursor 非正数表示首页
+         * @param now 当前时间戳；仅在首页时使用。由调用方注入以便测试。
+         */
+        internal fun buildNewsListUrl(cursor: Long, now: Long): String {
+            val effectiveCursor = cursor.takeIf { it > 0L } ?: now
+            return "$NEWS_LIST_API?ot=$effectiveCursor"
+        }
 
         /** 单次「加载更多」最多连续请求的原始页数（防止分类过于稀疏时长时间空转）。 */
         internal const val MAX_SUB_PAGES = 4

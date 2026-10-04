@@ -34,10 +34,21 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v1.9.1",
+        releaseDate = "2026-10-04",
+        summary = "修复下拉刷新拿不到最新文章的问题；刷新与失败提示改用系统 Toast。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FIX, "下拉刷新不再命中资讯接口缓存，确保每次刷新都拉取服务端最新列表"),
+            ChangeItem(ChangeType.IMPROVEMENT, "刷新结果与失败提示改为系统 Toast，不再打断操作、也不再遮挡内容"),
+            ChangeItem(ChangeType.IMPROVEMENT, "首屏加载与切换分类同样强制回源，避免看到过期内容")
+        )
+    ),
+    ReleaseNote(
         version = "v1.9.0",
         releaseDate = "2026-10-04",
         summary = "补全分享与收藏两套系统，修复版本时间线抽屉的滚动与遮挡问题，并订正内置字体的名称与出处。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "分享功能：接入系统分享面板，可分享文章标题与链接"),
             ChangeItem(ChangeType.FEATURE, "收藏系统：收藏状态本地持久化，新增「我的收藏」页面，支持查看与取消"),

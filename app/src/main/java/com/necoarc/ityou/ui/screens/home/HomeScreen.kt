@@ -42,8 +42,11 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -56,6 +59,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.necoarc.ityou.data.model.ArticleCategory
 import com.necoarc.ityou.ui.components.ArticleCard
+import com.necoarc.ityou.ui.components.BackToTopRefreshButton
 import com.necoarc.ityou.ui.components.FeedItemType
 import com.necoarc.ityou.ui.components.HeroArticleCard
 import com.necoarc.ityou.ui.components.HomeSkeletonScreen
@@ -63,9 +67,27 @@ import com.necoarc.ityou.ui.theme.Dimens
 import com.necoarc.ityou.ui.util.AppToast
 import com.necoarc.ityou.ui.theme.ShapeCache
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 
 /** 距离列表末尾还有多少项时触发预加载。 */
 private const val PREFETCH_THRESHOLD = 3
+
+/**
+ * 滚过多少个列表项后显示「回到顶部」按钮。
+ *
+ * 取 4 而非 1：仅仅滑动一两屏（首页还有分类栏与头条卡）就弹出按钮，
+ * 会显得过于敏感、也容易误触；4 项约对应一屏半以上的真实下翻距离。
+ */
+private const val BACK_TO_TOP_THRESHOLD = 4
+
+/**
+ * 按钮距离右下角的间距。
+ *
+ * 用 16dp 与列表内边距保持一致；未额外叠加导航栏 inset，
+ * 因为该按钮位于已消费 `innerPadding` 的容器内，
+ * 底部安全区已由 Scaffold 处理，重复叠加会把按钮顶得过高。
+ */
+private val BACK_TO_TOP_BUTTON_PADDING = 16.dp
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -80,6 +102,16 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    // 是否已滚过「一段距离」——决定回到顶部按钮的显隐。
+    //
+    // 用 derivedStateOf 而非直接读 listState：滚动时 firstVisibleItemIndex
+    // 每帧都在变，直接读取会让整个 HomeScreen 每帧重组。
+    // derivedStateOf 只在**布尔结果翻转时**才通知下游，把重组压到两次。
+    val showBackToTop by remember {
+        derivedStateOf { listState.firstVisibleItemIndex >= BACK_TO_TOP_THRESHOLD }
+    }
 
     // 触底预加载：使用 snapshotFlow 收集尾部可见项，避免每帧读取 layoutInfo 触发额外重组
     LaunchedEffect(listState) {
@@ -173,6 +205,25 @@ fun HomeScreen(
                         onArticleClick = onArticleClick,
                         onCategorySelected = viewModel::selectCategory,
                         onRetryLoadMore = viewModel::retryLoadMore
+                    )
+
+                    // 回到顶部 + 刷新。浮于列表右下角，滚过一段距离后才出现。
+                    BackToTopRefreshButton(
+                        visible = showBackToTop,
+                        onClick = {
+                            coroutineScope.launch {
+                                // 先滚回顶部，**等待滚动真正结束**再刷新。
+                                //
+                                // 若两个动作并发：刷新会替换整个列表，而滚动动画的
+                                // 目标索引是基于旧数据的，轻则滚动位置错乱、
+                                // 重则停在列表中间（新列表更短时）。
+                                listState.animateScrollToItem(0)
+                                viewModel.refresh()
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(BACK_TO_TOP_BUTTON_PADDING)
                     )
                 }
             }

@@ -1,6 +1,5 @@
 package com.necoarc.ityou.ui.screens.home
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,7 +40,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
-import androidx.compose.material3.pulltorefresh.pullToRefreshIndicator
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,7 +50,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -63,14 +61,13 @@ import com.necoarc.ityou.ui.components.FeedItemType
 import com.necoarc.ityou.ui.components.HeroArticleCard
 import com.necoarc.ityou.ui.components.HomeSkeletonScreen
 import com.necoarc.ityou.ui.theme.Dimens
-import com.necoarc.ityou.ui.theme.Motion
 import com.necoarc.ityou.ui.theme.ShapeCache
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /** 距离列表末尾还有多少项时触发预加载。 */
 private const val PREFETCH_THRESHOLD = 3
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
     onArticleClick: (articleId: String, url: String, title: String, author: String, pubTime: String) -> Unit,
@@ -177,63 +174,36 @@ fun HomeScreen(
 /**
  * MD3E 下拉刷新指示器。
  *
- * 使用 Material 3 Expressive 的 [ContainedLoadingIndicator]：
- * 它是一个「容器化」的加载指示器 —— 形状在彩色容器内持续形变（morph），
- * 比传统的转圈进度条更符合 M3E 的表现力取向。
+ * 使用 [PullToRefreshDefaults.LoadingIndicator] —— 这是 Material 官方为下拉刷新
+ * 场景提供的 M3E 指示器，其内部渲染的就是 [ContainedLoadingIndicator]
+ * （形状在容器内持续形变 morph），因此无需自己拼装：
+ * - 刷新中：容器化加载指示器持续形变；
+ * - 下拉中：指示器形状随 `distanceFraction` 从 0→1 推进；
+ * - 超过阈值后继续下拉：整体旋转，给出"松手即可刷新"的连续反馈。
  *
- * - **容器形状**：胶囊形 [ShapeCache.smoothPill]，与本应用的形状语言统一；
- * - **配色**：容器 `primaryContainer` + 指示器 `onPrimaryContainer`
- *   （官方规范要求成对使用，保证对比度）；
- * - **容器显隐**：仅在「拉过阈值」或刷新中才显示容器，
- *   下拉过程中容器保持透明，避免未达阈值就给用户"已在刷新"的错觉。
+ * 配色遵循 MD3E 的成对使用约束：
+ * 容器 `primaryContainer` + 指示器 `onPrimaryContainer`（保证对比度）。
  *
- * 实现说明：这里**直接使用 `Modifier.pullToRefreshIndicator`**，
- * 它内部已负责尺寸（40dp）、位移、裁剪与容器背景绘制，
- * 不要再外包一层 `Surface` 或自行 `.size()`，否则会与它冲突并导致定位错乱。
+ * 实现说明：此处**只需传颜色**，尺寸 / 位移 / 裁剪 / 容器绘制
+ * 全部由官方实现负责，不要自行外包 `Surface` 或 `.size()`。
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun Md3ePullToRefreshIndicator(
     state: PullToRefreshState,
     isRefreshing: Boolean,
     modifier: Modifier = Modifier
 ) {
-    // 仅在「拉过阈值」时才展示容器，给用户明确的"松手即可刷新"信号
-    val active = isRefreshing || state.distanceFraction >= 1f
-    val containerAlpha by animateFloatAsState(
-        targetValue = if (active) 1f else 0f,
-        animationSpec = Motion.fadeInSpec,
-        label = "ptrContainerAlpha"
+    PullToRefreshDefaults.LoadingIndicator(
+        state = state,
+        isRefreshing = isRefreshing,
+        modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        color = MaterialTheme.colorScheme.onPrimaryContainer,
+        elevation = PullToRefreshDefaults.LoadingIndicatorElevation
     )
-
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier.pullToRefreshIndicator(
-            state = state,
-            isRefreshing = isRefreshing,
-            shape = ShapeCache.smoothPill,
-            // 容器背景由 pullToRefreshIndicator 绘制；这里传透明，
-            // 改由内部的 ContainedLoadingIndicator 自己画容器，
-            // 以便复用它的形状形变动效。
-            containerColor = Color.Transparent,
-            elevation = PULL_TO_REFRESH_ELEVATION
-        )
-    ) {
-        ContainedLoadingIndicator(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-                .copy(alpha = containerAlpha),
-            indicatorColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            containerShape = ShapeCache.smoothPill,
-            modifier = Modifier.size(PULL_TO_REFRESH_INDICATOR_SIZE)
-        )
-    }
 }
 
-/** 指示器尺寸（与 pullToRefreshIndicator 的 40dp 容器留出内边距）。 */
-private val PULL_TO_REFRESH_INDICATOR_SIZE = 32.dp
-
-/** 指示器阴影海拔（与默认 Level2 保持一致）。 */
-private val PULL_TO_REFRESH_ELEVATION = 2.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

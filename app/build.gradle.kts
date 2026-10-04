@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.necoarc.ityou"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.necoarc.ityou"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 10
         versionName = "1.7.1"
 
@@ -52,9 +52,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         compose = true
         // 供设置页读取 versionName 构建信息，避免版本号在代码里硬编码后与 build.gradle 漂移
@@ -62,6 +59,13 @@ android {
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
+    }
+}
+
+// AGP 9 移除了 `android { kotlinOptions {} }`，改用 Kotlin 插件自身的 compilerOptions。
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 

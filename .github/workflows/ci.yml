@@ -33,7 +33,7 @@ jobs:
         # 本项目为 MIT 开源，故停留在最后一个完全 MIT 的版本（v5 已升级至 node24）。
         uses: gradle/actions/setup-gradle@v5
         with:
-          gradle-version: 8.13
+          gradle-version: 9.0
           cache-read-only: false
 
       - name: Decode Release Keystore

@@ -1,6 +1,10 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    // 注意：AGP 9 起内置 Kotlin 支持，**不再需要** `org.jetbrains.kotlin.android`。
+    // 若同时应用两者，会因重复注册 `kotlin` 扩展而失败：
+    //   Cannot add extension with name 'kotlin', as there is an extension already
+    //   registered with that name.
+    // 参考：https://developer.android.com/build/migrate-to-built-in-kotlin
     alias(libs.plugins.kotlin.compose)
 }
 
@@ -62,7 +66,8 @@ android {
     }
 }
 
-// AGP 9 移除了 `android { kotlinOptions {} }`，改用 Kotlin 插件自身的 compilerOptions。
+// AGP 9 移除了 `android { kotlinOptions {} }`，改用 `kotlin.compilerOptions {}`。
+// 官方要求 jvmTarget 与 android.compileOptions.targetCompatibility 保持一致。
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)

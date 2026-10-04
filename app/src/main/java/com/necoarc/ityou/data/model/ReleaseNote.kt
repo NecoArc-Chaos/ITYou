@@ -34,10 +34,21 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v1.8.1",
+        releaseDate = "2026-10-04",
+        summary = "刷新结果改为居中弹窗展示。此前用底部提示条，容易被底部导航与系统手势条遮挡、难以察觉。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FEATURE, "刷新结果改用居中弹窗，成功与失败提示统一形态，不再被底部区域遮挡"),
+            ChangeItem(ChangeType.IMPROVEMENT, "弹窗按成功/失败区分图标与容器配色，语义一眼可辨"),
+            ChangeItem(ChangeType.FIX, "修复刷新失败提示的状态残留：该状态此前不会随提示消失而清除，会导致弹窗重复出现")
+        )
+    ),
+    ReleaseNote(
         version = "v1.8.0",
         releaseDate = "2026-10-04",
         summary = "下拉刷新改用 Material 官方的容器化加载指示器；移除顶栏刷新按钮；构建工具链升级到 Compose Expressive 版。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "下拉刷新指示器改为官方 LoadingIndicator：形状在容器内持续形变，配色跟随主题主色容器"),
             ChangeItem(ChangeType.IMPROVEMENT, "移除顶栏刷新按钮，下拉刷新成为唯一刷新入口，界面更简洁"),

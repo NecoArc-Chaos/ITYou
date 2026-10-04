@@ -34,10 +34,23 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v1.9.0",
+        releaseDate = "2026-10-04",
+        summary = "补全分享与收藏两套系统，修复版本时间线抽屉的滚动与遮挡问题，并订正内置字体的名称与出处。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FEATURE, "分享功能：接入系统分享面板，可分享文章标题与链接"),
+            ChangeItem(ChangeType.FEATURE, "收藏系统：收藏状态本地持久化，新增「我的收藏」页面，支持查看与取消"),
+            ChangeItem(ChangeType.FIX, "版本时间线抽屉无法滚动、也没有回弹，且底部内容被系统手势条遮挡"),
+            ChangeItem(ChangeType.FIX, "内置字体名称订正为「馬路口圓體」，此前误写作黑体"),
+            ChangeItem(ChangeType.IMPROVEMENT, "设置页与 README 补充字体作者与 SIL OFL 1.1 授权信息")
+        )
+    ),
+    ReleaseNote(
         version = "v1.8.1",
         releaseDate = "2026-10-04",
         summary = "刷新结果改为居中弹窗展示。此前用底部提示条，容易被底部导航与系统手势条遮挡、难以察觉。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "刷新结果改用居中弹窗，成功与失败提示统一形态，不再被底部区域遮挡"),
             ChangeItem(ChangeType.IMPROVEMENT, "弹窗按成功/失败区分图标与容器配色，语义一眼可辨"),

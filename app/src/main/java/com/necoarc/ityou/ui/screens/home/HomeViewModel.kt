@@ -74,6 +74,17 @@ class HomeViewModel(
     }
 
     /**
+     * 消费掉错误提示（弹窗展示完毕后调用）。
+     *
+     * 必要性：`errorMessage` 原本只在「发起新的加载」时才被清空，
+     * 刷新失败后会长期保持非 null。改用模态弹窗后，任何一次重组都可能
+     * 让它重新弹出，因此必须由 UI 显式消费，与 [consumeRefreshResult] 对称。
+     */
+    fun consumeErrorMessage() {
+        _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    /**
      * 触底加载更多。重复调用是安全的（内部有状态守卫）。
      *
      * 注意：[cursor] 在**协程外**同步读取，再作为参数传入协程。

@@ -156,6 +156,10 @@ class HomeViewModelTest {
         assertEquals("失败时不应清空已有列表", 1, state.articles.size)
         assertEquals("网络错误", state.errorMessage)
         assertNull("失败时不应产生更新提示", state.refreshResult)
+
+        // 弹窗是模态的，状态必须能被显式消费；否则任何一次重组都会让它重新弹出
+        vm.consumeErrorMessage()
+        assertNull("消费后错误应被清空，避免弹窗重复出现", vm.uiState.value.errorMessage)
     }
 
     @Test

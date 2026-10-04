@@ -52,20 +52,24 @@ class HomeViewModelTest {
 
         override suspend fun getArticlePage(
             category: ArticleCategory,
-            cursor: Long
+            cursor: Long,
+            forceRefresh: Boolean
         ): Result<ArticlePage> {
             requestedCursors += cursor
+            requestedForceRefresh += forceRefresh
             val result = pages.getOrElse(callCount) { pages.last() }
             callCount++
             return result
         }
+
+        /** 记录每次调用是否要求回源，用于断言刷新绕过了缓存。 */
+        val requestedForceRefresh = mutableListOf<Boolean>()
     }
 
     private fun article(id: String) = Article(id = id, title = "title-$id")
 
     @Test
-    fun `刷新时报告新增文章数`() = runTest(dispatcher) {
-        val repo = FakeRepository(
+    fun `刷新时报告新增文章数`() = runTest(dispatcher) {        val repo = FakeRepository(
             listOf(
                 Result.success(ArticlePage(articles = listOf(article("a"), article("b")), hasMore = true)),
                 // 刷新后：a 仍在，新增 c、d
@@ -211,5 +215,51 @@ class HomeViewModelTest {
             repo.requestedCursors
         )
         assertTrue(vm.uiState.value.articles.map { it.id }.containsAll(listOf("a", "b")))
+    }
+
+    @Test
+    fun `首屏与刷新都要求回源，避免命中短缓存`() = runTest(dispatcher) {
+        val repo = FakeRepository(
+            listOf(
+                Result.success(ArticlePage(articles = listOf(article("a")), hasMore = true)),
+                Result.success(ArticlePage(articles = listOf(article("b")), hasMore = true))
+            )
+        )
+        val vm = HomeViewModel(repo)
+
+        // 首屏加载
+        advanceUntilIdle()
+        assertTrue(
+            "首屏应要求回源",
+            repo.requestedForceRefresh.first()
+        )
+
+        // 下拉刷新
+        vm.refresh()
+        advanceUntilIdle()
+        assertTrue(
+            "刷新应要求回源，否则会命中 60 秒短缓存而看似无效",
+            repo.requestedForceRefresh.last()
+        )
+    }
+
+    @Test
+    fun `加载更多不强制回源，可复用缓存`() = runTest(dispatcher) {
+        val repo = FakeRepository(
+            listOf(
+                Result.success(ArticlePage(articles = listOf(article("a")), nextCursor = 42L, hasMore = true)),
+                Result.success(ArticlePage(articles = listOf(article("b")), nextCursor = 84L, hasMore = true))
+            )
+        )
+        val vm = HomeViewModel(repo)
+
+        advanceUntilIdle()
+        vm.loadMore()
+        advanceUntilIdle()
+
+        assertFalse(
+            "翻页允许走缓存；强制回源只应保留给首屏与刷新",
+            repo.requestedForceRefresh.last()
+        )
     }
 }

@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
@@ -43,16 +42,13 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -60,57 +56,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.necoarc.ityou.data.model.ArticleCategory
 import com.necoarc.ityou.ui.components.ArticleCard
-import com.necoarc.ityou.ui.components.CenterNoticeDialog
 import com.necoarc.ityou.ui.components.FeedItemType
 import com.necoarc.ityou.ui.components.HeroArticleCard
 import com.necoarc.ityou.ui.components.HomeSkeletonScreen
 import com.necoarc.ityou.ui.theme.Dimens
+import com.necoarc.ityou.ui.util.AppToast
 import com.necoarc.ityou.ui.theme.ShapeCache
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /** 距离列表末尾还有多少项时触发预加载。 */
 private const val PREFETCH_THRESHOLD = 3
-
-/**
- * 中心提示弹窗的内容模型。
- *
- * 成功与失败共用同一个弹窗组件，仅靠 [isError] 区分图标形态，
- * 避免为两种语义维护两套视觉。
- */
-@Immutable
-private data class NoticeContent(
-    val title: String,
-    val message: String,
-    val isError: Boolean
-)
-
-/**
- * 弹窗标题上方的圆形图标。
- *
- * 用容器色阶区分成功 / 失败语义：
- * - 失败：`errorContainer` / `onErrorContainer`
- * - 成功：`primaryContainer` / `onPrimaryContainer`
- */
-@Composable
-private fun NoticeIcon(imageVector: ImageVector, isError: Boolean) {
-    val scheme = MaterialTheme.colorScheme
-    val container = if (isError) scheme.errorContainer else scheme.primaryContainer
-    val onContainer = if (isError) scheme.onErrorContainer else scheme.onPrimaryContainer
-    Surface(
-        shape = ShapeCache.smoothPill,
-        color = container,
-        contentColor = onContainer
-    ) {
-        Icon(
-            imageVector = imageVector,
-            contentDescription = null,
-            modifier = Modifier.padding(NOTICE_ICON_PADDING)
-        )
-    }
-}
-
-/** 弹窗图标内边距（决定圆形容器尺寸）。 */
-private val NOTICE_ICON_PADDING = 12.dp
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -124,9 +79,7 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
-
-    // 中心提示弹窗状态。成功与失败共用同一个弹窗，保证交互一致。
-    var notice by remember { mutableStateOf<NoticeContent?>(null) }
+    val context = LocalContext.current
 
     // 触底预加载：使用 snapshotFlow 收集尾部可见项，避免每帧读取 layoutInfo 触发额外重组
     LaunchedEffect(listState) {
@@ -140,55 +93,34 @@ fun HomeScreen(
             }
     }
 
-    // 刷新完成提示：消费一次性事件，展示「更新了 N 篇」后清空。
+    // 刷新完成提示。
     //
-    // 顺序很关键：**先根据事件内容构造弹窗状态并赋值，再消费事件**。
-    // 若反过来（先 consume 再赋值），consume 会触发 uiState 变化、
-    // 令本 LaunchedEffect 以 null 重启，弹窗状态就永远设不上。
+    // 改用系统 Toast 后不再需要本地 UI 状态：提示的生命周期完全由系统托管，
+    // 因此这里只需「读出事件 → 弹 Toast → 消费事件」。
+    // 仍需遵循「先处理、后消费」的顺序 —— 若先消费，uiState 变化会让本
+    // LaunchedEffect 以 null 重启，这次提示就丢了。
     val refreshResult = uiState.refreshResult
     LaunchedEffect(refreshResult) {
         if (refreshResult != null) {
-            notice = NoticeContent(
-                title = "刷新完成",
-                message = if (refreshResult.newCount > 0) {
-                    "已更新 ${refreshResult.newCount} 篇文章"
-                } else {
-                    "已同步最新文章"
-                },
-                isError = false
-            )
+            val message = if (refreshResult.newCount > 0) {
+                "已更新 ${refreshResult.newCount} 篇文章"
+            } else {
+                "已同步最新文章"
+            }
+            AppToast.show(context, message)
             viewModel.consumeRefreshResult()
         }
     }
 
     // 刷新失败提示：列表非空时错误页不会展示（错误页只用于「首屏为空」的场景），
     // 若不在这里兜底，用户只会看到转圈突然停止、没有任何反馈 —— 属于静默失败。
-    //
-    // 同样遵循「先赋值、后消费」的顺序，理由见上。
+    // 用较长时长，让错误信息有足够时间被看清。
     val errorMessage = uiState.errorMessage
     LaunchedEffect(errorMessage) {
         if (errorMessage != null && uiState.articles.isNotEmpty()) {
-            notice = NoticeContent(
-                title = "刷新失败",
-                message = errorMessage,
-                isError = true
-            )
+            AppToast.show(context, errorMessage, long = true)
             viewModel.consumeErrorMessage()
         }
-    }
-
-    // 中心提示弹窗：与 Snackbar 不同，它不会被底部导航或系统手势条遮挡。
-    notice?.let { current ->
-        CenterNoticeDialog(
-            title = current.title,
-            message = current.message,
-            onDismissRequest = { notice = null },
-            icon = if (current.isError) {
-                { NoticeIcon(Icons.Outlined.CloudOff, isError = true) }
-            } else {
-                { NoticeIcon(Icons.Outlined.CheckCircle, isError = false) }
-            }
-        )
     }
 
     Scaffold(

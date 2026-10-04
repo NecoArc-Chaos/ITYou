@@ -181,7 +181,14 @@ class HomeViewModel(
             }
             cursor = 0L
 
-            val result = repository.getArticlePage(category = category, cursor = 0L)
+            // 首屏/刷新/切分类都必须回源：
+            // 这三种场景用户期待的都是「此刻最新的内容」，
+            // 若命中资讯接口的 60 秒短缓存，下拉刷新会看起来毫无效果。
+            val result = repository.getArticlePage(
+                category = category,
+                cursor = 0L,
+                forceRefresh = true
+            )
 
             result.onSuccess { page ->
                 cursor = page.nextCursor

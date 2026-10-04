@@ -46,10 +46,14 @@ open class ArticleRepository {
      * 直到收集到足够多的匹配项或数据源耗尽。
      *
      * @param cursor 0 表示从最新开始；否则为上一页返回的 [ArticlePage.nextCursor]
+     * @param forceRefresh 为 true 时绕过 HTTP 缓存强制回源。
+     *   下拉刷新与「切换分类」这类用户明确要求「拿最新」的场景应传 true，
+     *   否则会命中资讯接口的 60 秒短缓存，看起来像刷新没生效。
      */
     open suspend fun getArticlePage(
         category: ArticleCategory = ArticleCategory.ALL,
-        cursor: Long = 0L
+        cursor: Long = 0L,
+        forceRefresh: Boolean = false
     ): Result<ArticlePage> {
         val isFirstPage = cursor <= 0L
         val maxPages = if (category == ArticleCategory.ALL) 1 else MAX_SUB_PAGES
@@ -61,7 +65,9 @@ open class ArticleRepository {
                 startCursor = cursor,
                 maxPages = maxPages,
                 minMatches = minMatches,
-                fetchPage = ::fetchRawPageFromApi
+                fetchPage = { pageCursor ->
+                    fetchRawPageFromApi(cursor = pageCursor, forceRefresh = forceRefresh)
+                }
             )
         } catch (cancellation: CancellationException) {
             throw cancellation
@@ -277,15 +283,23 @@ open class ArticleRepository {
             "?commentId=$commentId&sn=$sn&appver=900"
 
 
-    private suspend fun fetchRawPageFromApi(cursor: Long): RawNewsPage = withContext(Dispatchers.IO) {
+    private suspend fun fetchRawPageFromApi(
+        cursor: Long,
+        forceRefresh: Boolean = false
+    ): RawNewsPage = withContext(Dispatchers.IO) {
         val url = if (cursor > 0L) "$NEWS_LIST_API?ot=$cursor" else NEWS_LIST_API
-        val request = Request.Builder()
+        val requestBuilder = Request.Builder()
             .url(url)
             .header("User-Agent", NetworkClient.USER_AGENT)
             .header("Referer", "https://m.ithome.com/")
-            .build()
 
-        client.newCall(request).execute().use { response ->
+        // 刷新场景要求回源：给拦截器一个显式标记，
+        // 否则该接口的 60 秒短缓存会让刷新拿到旧数据。
+        if (forceRefresh) {
+            requestBuilder.header(NetworkClient.HEADER_FORCE_REFRESH, "1")
+        }
+
+        client.newCall(requestBuilder.build()).execute().use { response ->
             if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
             val json = response.body?.string().orEmpty()
             val articles = HtmlParser.parseJsonNews(json)

@@ -19,6 +19,17 @@ object NetworkClient {
 
     const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14) ITYou-App/1.4"
 
+    /**
+     * 请求头标记：置为 `"1"` 时强制跳过资讯接口缓存。
+     *
+     * 为什么需要它：资讯接口本身不带缓存响应头，[newsApiCacheInterceptor]
+     * 会为其补上 60 秒的 `max-age`，以便分类来回切换时秒开。
+     * 但下拉刷新请求的是**完全相同的 URL**（同样不带 `ot` 参数），
+     * 因此会命中这份缓存 —— 表现为「刷新了，但看到的还是旧列表」。
+     * 刷新场景必须在请求头显式声明「不要缓存」。
+     */
+    const val HEADER_FORCE_REFRESH = "X-ITYou-Force-Refresh"
+
     private const val HTTP_CACHE_DIR = "http_cache"
     private const val HTTP_CACHE_SIZE_BYTES = 24L * 1024 * 1024
 
@@ -58,20 +69,42 @@ object NetworkClient {
         .retryOnConnectionFailure(true)
 
     /**
-     * 资讯接口本身不带任何缓存响应头，导致每次进入 App / 来回切换分类都要
-     * 重新请求整页 JSON。这里为 `/api/` 响应补一个 60 秒的短缓存：
-     * 分类来回切换时可直接命中磁盘缓存，首屏秒开。
+     * 资讯接口缓存策略。
+     *
+     * 1. 请求头带 [HEADER_FORCE_REFRESH]（下拉刷新）：
+     *    改写为 `no-cache` 并**移除请求头**后转发，强制走网络校验，
+     *    保证用户拿到的就是最新列表。
+     * 2. 其余 `/api/` 请求（首屏、切分类、加载更多）：
+     *    补充 60 秒 `max-age`，使其可命中磁盘缓存，减少重复整页请求。
+     *
+     * 注意：该标记必须在转发前删除，否则会被一并发送到服务端。
      */
     private val newsApiCacheInterceptor = Interceptor { chain ->
-        val request = chain.request()
-        val response = chain.proceed(request)
-        if (request.url.encodedPath.startsWith("/api/") && response.isSuccessful) {
-            response.newBuilder()
-                .removeHeader("Pragma")
-                .header("Cache-Control", "public, max-age=60")
-                .build()
+        val original = chain.request()
+        val isApi = original.url.encodedPath.startsWith("/api/")
+        val forceRefresh = original.header(HEADER_FORCE_REFRESH) == "1"
+
+        if (!isApi) return@Interceptor chain.proceed(original)
+
+        val request = if (forceRefresh) {
+            original.newBuilder().removeHeader(HEADER_FORCE_REFRESH).build()
         } else {
-            response
+            original
         }
+
+        val response = chain.proceed(request)
+        if (!response.isSuccessful) return@Interceptor response
+
+        val cacheControl = if (forceRefresh) CACHE_CONTROL_NO_CACHE else CACHE_CONTROL_SHORT_LIVED
+        response.newBuilder()
+            .removeHeader("Pragma")
+            .header("Cache-Control", cacheControl)
+            .build()
     }
+
+    /** 强制刷新：不使用任何已存副本，必须回源校验。 */
+    private const val CACHE_CONTROL_NO_CACHE = "no-cache, no-store, must-revalidate"
+
+    /** 常规加载：允许 60 秒的短缓存，兼顾首屏速度与内容新鲜度。 */
+    private const val CACHE_CONTROL_SHORT_LIVED = "public, max-age=60"
 }

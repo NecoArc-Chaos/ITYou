@@ -34,10 +34,23 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v1.8.0",
+        releaseDate = "2026-10-04",
+        summary = "下拉刷新改用 Material 官方的容器化加载指示器；移除顶栏刷新按钮；构建工具链升级到 Compose Expressive 版。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FEATURE, "下拉刷新指示器改为官方 LoadingIndicator：形状在容器内持续形变，配色跟随主题主色容器"),
+            ChangeItem(ChangeType.IMPROVEMENT, "移除顶栏刷新按钮，下拉刷新成为唯一刷新入口，界面更简洁"),
+            ChangeItem(ChangeType.IMPROVEMENT, "无新文章时提示文案改为「已同步最新文章」"),
+            ChangeItem(ChangeType.IMPROVEMENT, "升级到 Compose Material 3 Expressive 版本线，为后续使用 M3E 组件铺路"),
+            ChangeItem(ChangeType.FIX, "设置页版本号此前硬编码为 v1.4.0，现改为读取构建信息，随版本自动更新")
+        )
+    ),
+    ReleaseNote(
         version = "v1.7.1",
         releaseDate = "2026-10-04",
         summary = "下拉刷新改用契合本应用形状与配色的指示器；修复刷新与触底加载并发时的游标竞争、刷新失败静默无提示等问题。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.IMPROVEMENT, "下拉刷新指示器改为胶囊形状 + primaryContainer 配色，与本应用形状语言统一"),
             ChangeItem(ChangeType.FIX, "修复刷新与触底加载并发时使用过期游标、导致文章重复或错乱的问题"),

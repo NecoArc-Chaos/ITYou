@@ -34,10 +34,25 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v2.0.0",
+        releaseDate = "2026-10-04",
+        summary = "首个正式版。修复刷新滞后问题，新增「回到顶部并刷新」浮动按钮，补全分享与收藏系统。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FEATURE, "新增「回到顶部并刷新」浮动按钮：下翻一段距离后出现在右下角，单击即平滑回到顶部并自动刷新"),
+            ChangeItem(ChangeType.FIX, "彻底修复刷新后内容滞后约 20 分钟的根因（服务端 CDN 缓存）"),
+            ChangeItem(ChangeType.FEATURE, "分享功能：接入系统分享面板"),
+            ChangeItem(ChangeType.FEATURE, "收藏系统：本地持久化，新增「我的收藏」页面"),
+            ChangeItem(ChangeType.IMPROVEMENT, "刷新提示改用系统 Toast，不再打断操作"),
+            ChangeItem(ChangeType.FIX, "修复版本时间线抽屉无法滚动、底部被手势条遮挡的问题"),
+            ChangeItem(ChangeType.IMPROVEMENT, "内置字体正名为「馬路口圓體」并补充授权信息")
+        )
+    ),
+    ReleaseNote(
         version = "v1.9.2",
         releaseDate = "2026-10-04",
         summary = "彻底修复下拉刷新拿不到最新文章的问题：根因在上游 CDN，现已从请求地址层面绕过。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FIX, "刷新后固定滞后约 20 分钟、漏掉数篇文章的问题已修复"),
             ChangeItem(ChangeType.FIX, "首屏与刷新改为携带时间游标请求，避免命中服务端 CDN 的固定缓存"),

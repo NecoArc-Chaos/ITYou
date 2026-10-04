@@ -217,7 +217,11 @@ fun HomeScreen(
                                 // 若两个动作并发：刷新会替换整个列表，而滚动动画的
                                 // 目标索引是基于旧数据的，轻则滚动位置错乱、
                                 // 重则停在列表中间（新列表更短时）。
-                                listState.animateScrollToItem(0)
+                                //
+                                // 用 runCatching 兜住：列表在此期间被清空/替换时，
+                                // animateScrollToItem 可能因目标索引失效而抛错，
+                                // 但用户意图是「刷新」，不该因此中断。
+                                runCatching { listState.animateScrollToItem(0) }
                                 viewModel.refresh()
                             }
                         },

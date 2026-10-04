@@ -38,6 +38,7 @@
 ### 📰 智能资讯流与流畅滑动
 - **无限流式加载**：基于服务端时间戳游标（Cursor）向上流式翻页，列表滑至倒数第 3 项无感静默预加载。
 - **下拉刷新**：首页下拉即拉取服务端最新内容，指示器采用 Material 官方的容器化加载指示器，形状随下拉距离形变；完成或失败均以系统 Toast 反馈，不打断阅读。
+- **回到顶部并刷新**：下翻一段距离后，右下角浮现浮动按钮，单击即平滑回到列表顶部并自动刷新，省去「滚回顶部再下拉」的两步操作。
 - **纯净阅读过滤**：自动剥离 `lapin.ithome.com` 导购、纯商业推广与标记广告内容，保证 100% 极客科技资讯体验。
 - **等高卡片与绝对对齐骨架屏**：统一卡片文本几何推导，卡片高度完全一致，彻底消除内容装载时的视觉跳动。
 
@@ -88,7 +89,7 @@ ITYou/
 ## 📦 下载与体验
 
 - **运行要求**：Android 8.0 (API 26) 及以上，推荐 Android 14+ 以获得最佳预见式返回动效。
-- **下载安装**：前往仓库的 [**Releases 页面**](https://github.com/NecoArc-Chaos/ITYou/releases) 获取最新的 Pre-Release 安装包（`ITYou-v1.9.2-release.apk`，内置 R8 深度混淆与 Baseline Profile 优化）。
+- **下载安装**：前往仓库的 [**Releases 页面**](https://github.com/NecoArc-Chaos/ITYou/releases) 获取安装包（`ITYou-v2.0.0-release.apk`，内置 R8 深度混淆与 Baseline Profile 优化）。v2.0.0 起提供正式版，此前的预览构建仍在 Releases 页面保留。
 
 ---
 

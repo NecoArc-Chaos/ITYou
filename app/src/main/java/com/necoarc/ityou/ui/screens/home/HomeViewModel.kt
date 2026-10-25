@@ -46,6 +46,19 @@ data class HomeUiState(
 @Immutable
 data class RefreshResult(val newCount: Int)
 
+/**
+ * 分类文章流状态快照。
+ *
+ * 用于在分类切换时保存并快速恢复该分类的文章列表与分页游标，
+ * 避免在不同分类间来回选择时反复发起网络请求与展示骨架屏。
+ */
+@Immutable
+private data class CategoryFeedSnapshot(
+    val articles: List<Article> = emptyList(),
+    val cursor: Long = 0L,
+    val hasMore: Boolean = true
+)
+
 class HomeViewModel(
     private val repository: ArticleRepository = ArticleRepository()
 ) : ViewModel() {
@@ -55,6 +68,15 @@ class HomeViewModel(
 
     /** 分页游标：服务端原始页的最旧时间戳 */
     private var cursor: Long = 0L
+
+    /**
+     * 按分类划分的首页文章流缓存映射表。
+     *
+     * 解决核心痛点：
+     * 用户在不同分类之间来回选择时，只要该分类已经加载过，直接从内存缓存恢复，
+     * 做到「每个分类只加载一次」，来回切换秒切秒开，无需每次重复网络请求与等待转圈。
+     */
+    private val categoryCacheMap = mutableMapOf<ArticleCategory, CategoryFeedSnapshot>()
 
     private var firstPageJob: Job? = null
     private var loadMoreJob: Job? = null
@@ -121,11 +143,19 @@ class HomeViewModel(
                 cursor = page.nextCursor
                 val existingIds = current.articles.mapTo(HashSet()) { it.id }
                 val appended = page.articles.filterNot { it.id in existingIds }
+                val updatedArticles = current.articles + appended
                 _uiState.update { it.copy(
                     isLoadingMore = false,
-                    articles = it.articles + appended,
+                    articles = updatedArticles,
                     hasMore = page.hasMore
                 ) }
+
+                // 同步更新该分类的缓存映射
+                categoryCacheMap[requestCategory] = CategoryFeedSnapshot(
+                    articles = updatedArticles,
+                    cursor = page.nextCursor,
+                    hasMore = page.hasMore
+                )
             }.onFailure {
                 _uiState.update { current -> current.copy(isLoadingMore = false, loadMoreFailed = true) }
             }
@@ -139,9 +169,56 @@ class HomeViewModel(
     }
 
     fun selectCategory(category: ArticleCategory) {
-        if (_uiState.value.selectedCategory == category) return
-        _uiState.update { it.copy(selectedCategory = category) }
-        loadFirstPage(clearExisting = true)
+        val currentCategory = _uiState.value.selectedCategory
+        if (currentCategory == category) return
+
+        // 1. 保存离开前的当前分类状态快照
+        val currentArticles = _uiState.value.articles
+        if (currentArticles.isNotEmpty()) {
+            categoryCacheMap[currentCategory] = CategoryFeedSnapshot(
+                articles = currentArticles,
+                cursor = cursor,
+                hasMore = _uiState.value.hasMore
+            )
+        }
+
+        firstPageJob?.cancel()
+        loadMoreJob?.cancel()
+
+        // 2. 检查目标分类是否已有缓存
+        val cached = categoryCacheMap[category]
+        if (cached != null && cached.articles.isNotEmpty()) {
+            // 命中缓存：直接同步恢复该分类的文章列表、游标与状态，无需重新加载网络！
+            cursor = cached.cursor
+            _uiState.update {
+                it.copy(
+                    selectedCategory = category,
+                    articles = cached.articles,
+                    hasMore = cached.hasMore,
+                    isLoading = false,
+                    isRefreshing = false,
+                    isLoadingMore = false,
+                    loadMoreFailed = false,
+                    errorMessage = null,
+                    refreshResult = null
+                )
+            }
+        } else {
+            // 首次访问该分类：置空列表并向网络发起首屏请求
+            cursor = 0L
+            _uiState.update {
+                it.copy(
+                    selectedCategory = category,
+                    articles = emptyList(),
+                    hasMore = true,
+                    isLoading = true,
+                    loadMoreFailed = false,
+                    errorMessage = null,
+                    refreshResult = null
+                )
+            }
+            loadFirstPage(clearExisting = true, isRefresh = false)
+        }
     }
 
     private fun loadFirstPage(clearExisting: Boolean, isRefresh: Boolean = false) {
@@ -209,6 +286,13 @@ class HomeViewModel(
                         }
                     )
                 }
+
+                // 同步记录到该分类的缓存映射表中
+                categoryCacheMap[category] = CategoryFeedSnapshot(
+                    articles = page.articles,
+                    cursor = page.nextCursor,
+                    hasMore = page.hasMore
+                )
             }.onFailure { error ->
                 _uiState.update { current ->
                     current.copy(

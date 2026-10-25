@@ -56,6 +56,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -111,7 +112,10 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val listState = rememberLazyListState()
+    // 为每个分类独立保存与恢复滚动位置，切换分类来回浏览时位置不丢失
+    val listState = rememberSaveable(uiState.selectedCategory, saver = androidx.compose.foundation.lazy.LazyListState.Saver) {
+        androidx.compose.foundation.lazy.LazyListState()
+    }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -164,11 +168,6 @@ fun HomeScreen(
             AppToast.show(context, errorMessage, long = true)
             viewModel.consumeErrorMessage()
         }
-    }
-
-    // 切换分类时将列表滚动位置平滑重置至顶部
-    LaunchedEffect(uiState.selectedCategory) {
-        listState.scrollToItem(0)
     }
 
     Scaffold(

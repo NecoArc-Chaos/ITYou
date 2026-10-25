@@ -262,4 +262,41 @@ class HomeViewModelTest {
             repo.requestedForceRefresh.last()
         )
     }
+
+    @Test
+    fun `不同分类来回切换只加载一次，命中缓存无需重复网络请求`() = runTest(dispatcher) {
+        val allArticles = listOf(article("all_1"), article("all_2"))
+        val phoneArticles = listOf(article("phone_1"), article("phone_2"))
+
+        val repo = FakeRepository(
+            listOf(
+                Result.success(ArticlePage(articles = allArticles, hasMore = true)),
+                Result.success(ArticlePage(articles = phoneArticles, hasMore = true))
+            )
+        )
+        val vm = HomeViewModel(repo)
+        advanceUntilIdle()
+
+        // 1. 验证首屏 (ALL) 加载完成
+        assertEquals(1, repo.callCount)
+        assertEquals(allArticles, vm.uiState.value.articles)
+
+        // 2. 切到「手机」分类：首次加载，请求次数变为 2
+        vm.selectCategory(ArticleCategory.SMARTPHONE)
+        advanceUntilIdle()
+        assertEquals(2, repo.callCount)
+        assertEquals(phoneArticles, vm.uiState.value.articles)
+
+        // 3. 切回「全部」分类：命中缓存！不应发起新请求，调用次数维持为 2，且列表秒切恢复
+        vm.selectCategory(ArticleCategory.ALL)
+        advanceUntilIdle()
+        assertEquals("切回已有分类不应产生网络请求", 2, repo.callCount)
+        assertEquals("应直接从缓存恢复 ALL 分类文章", allArticles, vm.uiState.value.articles)
+
+        // 4. 再次切回「手机」分类：同样命中缓存！调用次数依然维持为 2
+        vm.selectCategory(ArticleCategory.SMARTPHONE)
+        advanceUntilIdle()
+        assertEquals("再次切回手机分类也不应产生网络请求", 2, repo.callCount)
+        assertEquals("应直接从缓存恢复手机分类文章", phoneArticles, vm.uiState.value.articles)
+    }
 }

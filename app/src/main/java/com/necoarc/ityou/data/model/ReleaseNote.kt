@@ -34,10 +34,24 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v2.1.0",
+        releaseDate = "2026-10-25",
+        summary = "全面接入 MaterialExpressiveTheme 与动效系统，首页分类流支持独立内存缓存（分类间切换只加载一次、零加载秒开）；重构解耦详情页并新增正文大图手势查看器。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FEATURE, "首页分类流缓存：不同分类之间来回选择只加载一次，秒切无需重复网络请求"),
+            ChangeItem(ChangeType.DESIGN, "全面接入 MaterialExpressiveTheme 与全局 MotionScheme.expressive() 物理动效"),
+            ChangeItem(ChangeType.FEATURE, "分类切换过渡动画：点击分类标签支持方向感知的平滑滑动与微弹簧形变交互"),
+            ChangeItem(ChangeType.FEATURE, "正文大图手势查看器：支持双指缩放、双击缩放与自由平移预览"),
+            ChangeItem(ChangeType.IMPROVEMENT, "重构解耦超千行 DetailScreen 组件，提升代码组织清晰度与可维护性"),
+            ChangeItem(ChangeType.IMPROVEMENT, "优化收藏存储为后台异步持久化，统一 DetailRoute 安全路由契约")
+        )
+    ),
+    ReleaseNote(
         version = "v2.0.0",
         releaseDate = "2026-10-04",
         summary = "首个正式版。修复刷新滞后问题，新增「回到顶部并刷新」浮动按钮，补全分享与收藏系统。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "新增「回到顶部并刷新」浮动按钮：下翻一段距离后出现在右下角，单击即平滑回到顶部并自动刷新"),
             ChangeItem(ChangeType.FIX, "彻底修复刷新后内容滞后约 20 分钟的根因（服务端 CDN 缓存）"),

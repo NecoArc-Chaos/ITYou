@@ -1,5 +1,14 @@
 package com.necoarc.ityou.ui.screens.home
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,9 +60,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -155,6 +166,11 @@ fun HomeScreen(
         }
     }
 
+    // 切换分类时将列表滚动位置平滑重置至顶部
+    LaunchedEffect(uiState.selectedCategory) {
+        listState.scrollToItem(0)
+    }
+
     Scaffold(
         topBar = {
             HomeTopBar(
@@ -165,70 +181,101 @@ fun HomeScreen(
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier
     ) { innerPadding ->
-        when {
-            uiState.showFullScreenSkeleton -> {
-                HomeSkeletonScreen(windowInsetsPadding = innerPadding)
-            }
-
-            uiState.errorMessage != null && uiState.articles.isEmpty() -> {
-                HomeErrorState(
-                    message = uiState.errorMessage.orEmpty(),
-                    onRetry = { viewModel.refresh() },
-                    windowInsetsPadding = innerPadding
-                )
-            }
-
-            else -> {
-                // 下拉刷新：仅包裹列表区域（骨架屏/错误页无需下拉）
-                val pullState = rememberPullToRefreshState()
-                PullToRefreshBox(
-                    isRefreshing = uiState.isRefreshing,
-                    onRefresh = { viewModel.refresh() },
-                    state = pullState,
-                    // 自定义指示器：与本应用的胶囊形状 / primaryContainer 配色对齐
-                    indicator = {
-                        Md3ePullToRefreshIndicator(
-                            state = pullState,
-                            isRefreshing = uiState.isRefreshing,
-                            modifier = Modifier.align(Alignment.TopCenter)
-                        )
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                ) {
-                    HomeArticleList(
-                        uiState = uiState,
-                        listState = listState,
-                        // 内边距已由外层 PullToRefreshBox 消费，这里不再重复应用
-                        windowInsetsPadding = PaddingValues(0.dp),
-                        onArticleClick = onArticleClick,
-                        onCategorySelected = viewModel::selectCategory,
-                        onRetryLoadMore = viewModel::retryLoadMore
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            // 1. 顶部常驻分类导航胶囊条（带微弹簧缩放与自动居中滚动）
+            CategoryRow(
+                selectedCategory = uiState.selectedCategory,
+                onCategorySelected = viewModel::selectCategory,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = Dimens.listHorizontalPadding,
+                        vertical = 6.dp
                     )
+            )
 
-                    // 回到顶部 + 刷新。浮于列表右下角，滚过一段距离后才出现。
-                    BackToTopRefreshButton(
-                        visible = showBackToTop,
-                        onClick = {
-                            coroutineScope.launch {
-                                // 先滚回顶部，**等待滚动真正结束**再刷新。
-                                //
-                                // 若两个动作并发：刷新会替换整个列表，而滚动动画的
-                                // 目标索引是基于旧数据的，轻则滚动位置错乱、
-                                // 重则停在列表中间（新列表更短时）。
-                                //
-                                // 用 runCatching 兜住：列表在此期间被清空/替换时，
-                                // animateScrollToItem 可能因目标索引失效而抛错，
-                                // 但用户意图是「刷新」，不该因此中断。
-                                runCatching { listState.animateScrollToItem(0) }
-                                viewModel.refresh()
+            // 2. 下方内容区域：带分类切换过渡动画
+            AnimatedContent(
+                targetState = uiState.selectedCategory,
+                transitionSpec = {
+                    val isForward = targetState.ordinal > initialState.ordinal
+                    val direction = if (isForward) {
+                        AnimatedContentTransitionScope.SlideDirection.Start
+                    } else {
+                        AnimatedContentTransitionScope.SlideDirection.End
+                    }
+                    val navSpring = spring<IntOffset>(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                    (slideIntoContainer(direction, navSpring) + fadeIn(animationSpec = tween(220)))
+                        .togetherWith(slideOutOfContainer(direction, navSpring) + fadeOut(animationSpec = tween(180)))
+                },
+                label = "CategoryContentTransition",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) { _ ->
+                Box(modifier = Modifier.fillMaxSize()) {
+                    when {
+                        uiState.showFullScreenSkeleton -> {
+                            HomeSkeletonScreen(
+                                includeCategoryRow = false
+                            )
+                        }
+
+                        uiState.errorMessage != null && uiState.articles.isEmpty() -> {
+                            HomeErrorState(
+                                message = uiState.errorMessage.orEmpty(),
+                                onRetry = { viewModel.refresh() }
+                            )
+                        }
+
+                        else -> {
+                            // 下拉刷新：仅包裹列表区域
+                            val pullState = rememberPullToRefreshState()
+                            PullToRefreshBox(
+                                isRefreshing = uiState.isRefreshing,
+                                onRefresh = { viewModel.refresh() },
+                                state = pullState,
+                                // 自定义指示器：与本应用的胶囊形状 / primaryContainer 配色对齐
+                                indicator = {
+                                    Md3ePullToRefreshIndicator(
+                                        state = pullState,
+                                        isRefreshing = uiState.isRefreshing,
+                                        modifier = Modifier.align(Alignment.TopCenter)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                HomeArticleList(
+                                    uiState = uiState,
+                                    listState = listState,
+                                    windowInsetsPadding = PaddingValues(0.dp),
+                                    onArticleClick = onArticleClick,
+                                    onRetryLoadMore = viewModel::retryLoadMore
+                                )
+
+                                // 回到顶部 + 刷新。浮于列表右下角，滚过一段距离后才出现。
+                                BackToTopRefreshButton(
+                                    visible = showBackToTop,
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            runCatching { listState.animateScrollToItem(0) }
+                                            viewModel.refresh()
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(BACK_TO_TOP_BUTTON_PADDING)
+                                )
                             }
-                        },
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(BACK_TO_TOP_BUTTON_PADDING)
-                    )
+                        }
+                    }
                 }
             }
         }
@@ -304,7 +351,6 @@ private fun HomeArticleList(
     listState: androidx.compose.foundation.lazy.LazyListState,
     windowInsetsPadding: PaddingValues,
     onArticleClick: (articleId: String, url: String, title: String, author: String, pubTime: String) -> Unit,
-    onCategorySelected: (ArticleCategory) -> Unit,
     onRetryLoadMore: () -> Unit
 ) {
     LazyColumn(
@@ -318,15 +364,7 @@ private fun HomeArticleList(
         ),
         verticalArrangement = Arrangement.spacedBy(Dimens.listItemSpacing)
     ) {
-        // 1. 分类导航胶囊条
-        item(key = "category_row", contentType = FeedItemType.CATEGORY_ROW) {
-            CategoryRow(
-                selectedCategory = uiState.selectedCategory,
-                onCategorySelected = onCategorySelected
-            )
-        }
-
-        // 2. 头条大卡
+        // 1. 头条大卡
         val heroArticle = uiState.articles.firstOrNull()
         if (heroArticle != null) {
             item(key = "hero_${heroArticle.id}", contentType = FeedItemType.HERO) {
@@ -345,7 +383,7 @@ private fun HomeArticleList(
             }
         }
 
-        // 3. 文章卡片流
+        // 2. 文章卡片流
         val streamArticles = uiState.articles.drop(1)
         items(
             items = streamArticles,
@@ -366,7 +404,7 @@ private fun HomeArticleList(
             )
         }
 
-        // 4. 底部状态
+        // 3. 底部状态
         when {
             uiState.isLoadingMore -> {
                 item(key = "footer_loading", contentType = FeedItemType.LOADING_FOOTER) {
@@ -402,30 +440,61 @@ private fun HomeArticleList(
 @Composable
 private fun CategoryRow(
     selectedCategory: ArticleCategory,
-    onCategorySelected: (ArticleCategory) -> Unit
+    onCategorySelected: (ArticleCategory) -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val rowState = rememberLazyListState()
+
+    // 选中分类变动时，平滑滚动使目标分类 Chip 保持可见
+    LaunchedEffect(selectedCategory) {
+        val index = ArticleCategory.entries.indexOf(selectedCategory)
+        if (index >= 0) {
+            val targetScroll = (index - 1).coerceAtLeast(0)
+            rowState.animateScrollToItem(targetScroll)
+        }
+    }
+
     LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        state = rowState,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier
     ) {
         items(
             items = ArticleCategory.entries,
             key = { category -> "category_${category.name}" },
             contentType = { FeedItemType.CATEGORY_ROW }
         ) { category ->
+            val isSelected = selectedCategory == category
+
+            // MD3E 弹性微交互：选中项具有平滑的缩放动效
+            val chipScale by animateFloatAsState(
+                targetValue = if (isSelected) 1.05f else 1.0f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                ),
+                label = "CategoryChipScale"
+            )
+
             FilterChip(
-                selected = selectedCategory == category,
+                selected = isSelected,
                 onClick = { onCategorySelected(category) },
                 label = {
                     Text(
                         text = category.title,
-                        style = MaterialTheme.typography.labelLarge
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                     )
                 },
                 shape = ShapeCache.smooth20,
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                     selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                ),
+                modifier = Modifier.graphicsLayer {
+                    scaleX = chipScale
+                    scaleY = chipScale
+                }
             )
         }
     }
@@ -519,7 +588,7 @@ private fun EmptyFooter() {
 private fun HomeErrorState(
     message: String,
     onRetry: () -> Unit,
-    windowInsetsPadding: PaddingValues
+    windowInsetsPadding: PaddingValues = PaddingValues(0.dp)
 ) {
     Box(
         modifier = Modifier

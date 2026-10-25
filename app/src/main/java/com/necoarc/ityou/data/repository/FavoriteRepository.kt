@@ -80,12 +80,15 @@ class FavoriteRepository private constructor(private val context: Context) {
                     put(KEY_AUTHOR, item.author)
                     put(KEY_PUB_TIME, item.pubTime)
                     put(KEY_URL, item.url)
-                    put(KEY_COVER, item.coverUrl ?: JSONObject.NULL)
+                    if (item.coverUrl != null) {
+                        put(KEY_COVER, item.coverUrl)
+                    }
                     put(KEY_FAVORITED_AT, item.favoritedAt)
                 }
             )
         }
-        prefs.edit().putString(KEY_FAVORITES, array.toString()).commit()
+        // 使用 apply() 异步提交至后台线程写入磁盘，避免主线程 I/O 阻塞
+        prefs.edit().putString(KEY_FAVORITES, array.toString()).apply()
     }
 
     private fun loadFavorites(): List<FavoriteArticle> {
@@ -98,6 +101,13 @@ class FavoriteRepository private constructor(private val context: Context) {
                     val id = obj.optString(KEY_ID)
                     // id 是主键，缺失则视为脏数据丢弃，避免出现无法取消的幽灵收藏
                     if (id.isEmpty()) continue
+
+                    val coverUrl = if (obj.has(KEY_COVER) && !obj.isNull(KEY_COVER)) {
+                        obj.optString(KEY_COVER).takeIf { it.isNotBlank() && it != "null" }
+                    } else {
+                        null
+                    }
+
                     add(
                         FavoriteArticle(
                             id = id,
@@ -105,9 +115,7 @@ class FavoriteRepository private constructor(private val context: Context) {
                             author = obj.optString(KEY_AUTHOR),
                             pubTime = obj.optString(KEY_PUB_TIME),
                             url = obj.optString(KEY_URL),
-                            coverUrl = obj.optString(KEY_COVER).takeIf {
-                                it.isNotEmpty() && it != "null"
-                            },
+                            coverUrl = coverUrl,
                             favoritedAt = obj.optLong(KEY_FAVORITED_AT)
                         )
                     )

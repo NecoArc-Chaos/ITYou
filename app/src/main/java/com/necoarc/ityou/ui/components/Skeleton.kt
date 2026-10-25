@@ -185,7 +185,8 @@ private const val SKELETON_CARD_COUNT = 5
 @Composable
 fun HomeSkeletonScreen(
     modifier: Modifier = Modifier,
-    windowInsetsPadding: PaddingValues = PaddingValues(0.dp)
+    windowInsetsPadding: PaddingValues = PaddingValues(0.dp),
+    includeCategoryRow: Boolean = false
 ) {
     val shimmer = rememberShimmerState()
     val metrics = rememberArticleCardMetrics()
@@ -201,8 +202,10 @@ fun HomeSkeletonScreen(
         verticalArrangement = Arrangement.spacedBy(Dimens.listItemSpacing),
         userScrollEnabled = false
     ) {
-        item(key = "skeleton_category_row", contentType = FeedItemType.CATEGORY_ROW) {
-            SkeletonCategoryRow()
+        if (includeCategoryRow) {
+            item(key = "skeleton_category_row", contentType = FeedItemType.CATEGORY_ROW) {
+                SkeletonCategoryRow()
+            }
         }
 
         item(key = "skeleton_hero", contentType = FeedItemType.HERO) {

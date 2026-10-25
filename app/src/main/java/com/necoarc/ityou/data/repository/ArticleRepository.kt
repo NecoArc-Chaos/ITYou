@@ -1,6 +1,7 @@
 package com.necoarc.ityou.data.repository
 
 import androidx.compose.runtime.Immutable
+import com.necoarc.ityou.data.cache.ArticleDetailCache
 import com.necoarc.ityou.data.model.Article
 import com.necoarc.ityou.data.model.ArticleCategory
 import com.necoarc.ityou.data.model.ArticleComment
@@ -35,10 +36,17 @@ open class ArticleRepository(
      * 时钟。抽成可注入的依赖以便单元测试断言 URL 中的游标，
      * 而不是让 `System.currentTimeMillis()` 直接把行为变成不可验证的。
      */
-    private val clock: () -> Long = System::currentTimeMillis
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val detailCache: ArticleDetailCache = ArticleDetailCache.shared
 ) {
 
     private val client get() = NetworkClient.client
+
+    /**
+     * 从短期内存缓存直接获取文章详情（若已过期或未缓存则返回 null）。
+     */
+    fun getArticleDetailFromCache(articleId: String): ArticleDetail? =
+        detailCache.get(articleId)
 
     /**
      * 拉取「某个分类的下一个页面」。
@@ -109,20 +117,30 @@ open class ArticleRepository(
     /**
      * 拉取文章详情。
      *
-     * 注意：早期实现在网络失败时会返回一段**硬编码的示例正文**并当作真实内容展示，
-     * 这会让「加载失败」伪装成「加载成功」，也会掩盖真实的解析问题。
-     * 现在统一返回失败，由 UI 呈现可重试的错误状态。
+     * 具备短期内存缓存机制：
+     * 若在有效期内再次打开相同文章（且未指定 [forceRefresh]），直接命中缓存秒开，
+     * 避免重复发起 HTTP 请求与重复执行耗时的 Jsoup DOM 树解析。
      */
     suspend fun getArticleDetail(
         articleId: String,
         url: String,
         previewTitle: String = "",
         previewAuthor: String = "",
-        previewPubTime: String = ""
+        previewPubTime: String = "",
+        forceRefresh: Boolean = false
     ): Result<ArticleDetail> = withContext(Dispatchers.IO) {
         if (url.isBlank()) {
             return@withContext Result.failure(IOException("缺少文章链接"))
         }
+
+        // 1. 若非强制刷新，优先检查短期内存缓存
+        if (!forceRefresh) {
+            val cached = detailCache.get(articleId)
+            if (cached != null) {
+                return@withContext Result.success(cached)
+            }
+        }
+
         try {
             val request = Request.Builder()
                 .url(url)
@@ -141,14 +159,17 @@ open class ArticleRepository(
                     return@withContext Result.failure(IOException("正文解析为空，页面结构可能已变更"))
                 }
 
-                Result.success(
-                    detail.copy(
-                        title = detail.title.takeIf { it.isNotBlank() && it != "无标题" }
-                            ?: previewTitle.ifBlank { detail.title },
-                        author = previewAuthor.ifBlank { detail.author },
-                        publishTime = previewPubTime.ifBlank { detail.publishTime }
-                    )
+                val finalDetail = detail.copy(
+                    title = detail.title.takeIf { it.isNotBlank() && it != "无标题" }
+                        ?: previewTitle.ifBlank { detail.title },
+                    author = previewAuthor.ifBlank { detail.author },
+                    publishTime = previewPubTime.ifBlank { detail.publishTime }
                 )
+
+                // 2. 写入短期内存缓存
+                detailCache.put(articleId, finalDetail)
+
+                Result.success(finalDetail)
             }
         } catch (cancellation: CancellationException) {
             throw cancellation

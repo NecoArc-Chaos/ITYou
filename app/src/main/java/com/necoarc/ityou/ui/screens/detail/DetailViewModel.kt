@@ -55,30 +55,52 @@ class DetailViewModel(
     /**
      * 加载文章详情。对「同一篇文章正在加载」的重复调用会被忽略，
      * 避免导航重组导致的重复网络请求。
+     *
+     * 优化特性（短期缓存支持）：
+     * 在发起异步网络请求前先检查内存缓存，命中则直接以就绪态更新 UI，
+     * 用户返回或再次打开时可零延迟秒开，消除骨架屏闪烁。
      */
     fun loadArticleDetail(
         articleId: String,
         url: String,
         previewTitle: String = "",
         previewAuthor: String = "",
-        previewPubTime: String = ""
+        previewPubTime: String = "",
+        forceRefresh: Boolean = false
     ) {
         val request = DetailRequest(articleId, url, previewTitle, previewAuthor, previewPubTime)
         lastRequest = request
 
         val current = _uiState.value
-        if (current.articleId == articleId && (current.isLoading || current.detail != null)) return
+        if (!forceRefresh && current.articleId == articleId && (current.isLoading || current.detail != null)) return
+
+        // 1. 尝试直接从短期内存缓存快速还原状态，实现秒开体验
+        if (!forceRefresh) {
+            val cached = repository.getArticleDetailFromCache(articleId)
+            if (cached != null) {
+                _uiState.update {
+                    it.copy(
+                        articleId = articleId,
+                        isLoading = false,
+                        detail = cached,
+                        errorMessage = null
+                    )
+                }
+                loadComments(url)
+                return
+            }
+        }
 
         // 文章切换：清空评论相关缓存
         commentSn = null
-        runLoad(request)
+        runLoad(request, forceRefresh = forceRefresh)
         loadComments(url)
     }
 
     fun retry() {
         lastRequest?.let {
             commentSn = null
-            runLoad(it)
+            runLoad(it, forceRefresh = true)
             loadComments(it.url)
         }
     }
@@ -132,7 +154,7 @@ class DetailViewModel(
         }
     }
 
-    private fun runLoad(request: DetailRequest) {
+    private fun runLoad(request: DetailRequest, forceRefresh: Boolean = false) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             _uiState.update {
@@ -148,7 +170,8 @@ class DetailViewModel(
                 url = request.url,
                 previewTitle = request.previewTitle,
                 previewAuthor = request.previewAuthor,
-                previewPubTime = request.previewPubTime
+                previewPubTime = request.previewPubTime,
+                forceRefresh = forceRefresh
             )
 
             result.onSuccess { detail ->

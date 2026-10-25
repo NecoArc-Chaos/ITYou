@@ -119,11 +119,7 @@ fun ITYouNavApp(backAnimation: BackAnimationType) {
         ) {
             HomeScreen(
                 onArticleClick = { articleId, url, title, author, pubTime ->
-                    val encodedUrl = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
-                    val encodedTitle = URLEncoder.encode(title, StandardCharsets.UTF_8.toString())
-                    val encodedAuthor = URLEncoder.encode(author, StandardCharsets.UTF_8.toString())
-                    val encodedPubTime = URLEncoder.encode(pubTime, StandardCharsets.UTF_8.toString())
-                    navController.navigate("detail/$articleId?url=$encodedUrl&title=$encodedTitle&author=$encodedAuthor&pubTime=$encodedPubTime")
+                    navController.navigate(DetailRoute.create(articleId, url, title, author, pubTime))
                 },
                 onSettingsClick = {
                     navController.navigate("settings")
@@ -135,7 +131,7 @@ fun ITYouNavApp(backAnimation: BackAnimationType) {
         }
 
         composable(
-            route = "detail/{articleId}?url={url}&title={title}&author={author}&pubTime={pubTime}",
+            route = DetailRoute.PATTERN,
             arguments = listOf(
                 navArgument("articleId") { type = NavType.StringType },
                 navArgument("url") {
@@ -180,47 +176,27 @@ fun ITYouNavApp(backAnimation: BackAnimationType) {
                 }
             }
         ) { backStackEntry ->
-            val articleId = backStackEntry.arguments?.getString("articleId").orEmpty()
-            val rawUrl = backStackEntry.arguments?.getString("url").orEmpty()
-            val rawTitle = backStackEntry.arguments?.getString("title").orEmpty()
-            val rawAuthor = backStackEntry.arguments?.getString("author").orEmpty()
-            val rawPubTime = backStackEntry.arguments?.getString("pubTime").orEmpty()
-
-            val decodedUrl = try {
-                URLDecoder.decode(rawUrl, StandardCharsets.UTF_8.toString())
-            } catch (_: Exception) {
-                rawUrl
-            }
-            val decodedTitle = try {
-                URLDecoder.decode(rawTitle, StandardCharsets.UTF_8.toString())
-            } catch (_: Exception) {
-                rawTitle
-            }
-            val decodedAuthor = try {
-                URLDecoder.decode(rawAuthor, StandardCharsets.UTF_8.toString())
-            } catch (_: Exception) {
-                rawAuthor
-            }
-            val decodedPubTime = try {
-                URLDecoder.decode(rawPubTime, StandardCharsets.UTF_8.toString())
-            } catch (_: Exception) {
-                rawPubTime
-            }
+            val args = DetailRoute.parse(backStackEntry.arguments)
 
             DetailScreen(
-                articleId = articleId,
-                articleUrl = decodedUrl,
-                previewTitle = decodedTitle,
-                previewAuthor = decodedAuthor,
-                previewPubTime = decodedPubTime,
+                articleId = args.articleId,
+                articleUrl = args.url,
+                previewTitle = args.title,
+                previewAuthor = args.author,
+                previewPubTime = args.pubTime,
                 onBackClick = {
                     navController.popBackStack()
                 },
                 onRelatedArticleClick = { relId, relUrl, relTitle, relPubTime ->
-                    val encodedRelUrl = URLEncoder.encode(relUrl, StandardCharsets.UTF_8.toString())
-                    val encodedRelTitle = URLEncoder.encode(relTitle, StandardCharsets.UTF_8.toString())
-                    val encodedRelPubTime = URLEncoder.encode(relPubTime, StandardCharsets.UTF_8.toString())
-                    navController.navigate("detail/$relId?url=$encodedRelUrl&title=$encodedRelTitle&author=IT之家&pubTime=$encodedRelPubTime")
+                    navController.navigate(
+                        DetailRoute.create(
+                            articleId = relId,
+                            url = relUrl,
+                            title = relTitle,
+                            author = "IT之家",
+                            pubTime = relPubTime
+                        )
+                    )
                 }
             )
         }
@@ -275,14 +251,60 @@ fun ITYouNavApp(backAnimation: BackAnimationType) {
                     navController.popBackStack()
                 },
                 onArticleClick = { articleId, url, title, author, pubTime ->
-                    // 复用与首页相同的详情路由，保证从收藏进入的详情页行为一致
-                    val encodedUrl = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
-                    val encodedTitle = URLEncoder.encode(title, StandardCharsets.UTF_8.toString())
-                    val encodedAuthor = URLEncoder.encode(author, StandardCharsets.UTF_8.toString())
-                    val encodedPubTime = URLEncoder.encode(pubTime, StandardCharsets.UTF_8.toString())
-                    navController.navigate("detail/$articleId?url=$encodedUrl&title=$encodedTitle&author=$encodedAuthor&pubTime=$encodedPubTime")
+                    navController.navigate(DetailRoute.create(articleId, url, title, author, pubTime))
                 }
             )
         }
     }
+}
+
+/**
+ * 详情页路由契约：集中管理路径模式、参数安全编码与解码。
+ */
+object DetailRoute {
+    const val PATTERN = "detail/{articleId}?url={url}&title={title}&author={author}&pubTime={pubTime}"
+
+    fun create(
+        articleId: String,
+        url: String,
+        title: String = "",
+        author: String = "",
+        pubTime: String = ""
+    ): String {
+        val encUrl = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
+        val encTitle = URLEncoder.encode(title, StandardCharsets.UTF_8.toString())
+        val encAuthor = URLEncoder.encode(author, StandardCharsets.UTF_8.toString())
+        val encPubTime = URLEncoder.encode(pubTime, StandardCharsets.UTF_8.toString())
+        return "detail/$articleId?url=$encUrl&title=$encTitle&author=$encAuthor&pubTime=$encPubTime"
+    }
+
+    fun parse(bundle: Bundle?): DetailArgs {
+        val articleId = bundle?.getString("articleId").orEmpty()
+        val rawUrl = bundle?.getString("url").orEmpty()
+        val rawTitle = bundle?.getString("title").orEmpty()
+        val rawAuthor = bundle?.getString("author").orEmpty()
+        val rawPubTime = bundle?.getString("pubTime").orEmpty()
+
+        fun decodeSafely(raw: String): String = try {
+            URLDecoder.decode(raw, StandardCharsets.UTF_8.toString())
+        } catch (_: Exception) {
+            raw
+        }
+
+        return DetailArgs(
+            articleId = articleId,
+            url = decodeSafely(rawUrl),
+            title = decodeSafely(rawTitle),
+            author = decodeSafely(rawAuthor),
+            pubTime = decodeSafely(rawPubTime)
+        )
+    }
+
+    data class DetailArgs(
+        val articleId: String,
+        val url: String,
+        val title: String,
+        val author: String,
+        val pubTime: String
+    )
 }

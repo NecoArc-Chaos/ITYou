@@ -27,6 +27,7 @@
 
 ### 🎨 Material Design 3 Expressive 表现力视觉
 - **大曲率连续平滑形状体系**：采用 24dp/28dp 张力圆角卡片、胶囊药丸（Pill）指示器与多层级 SurfaceContainer 容器色差构建视觉层级，100% 无传统硬质分割线。
+- **全套 HCT 48 角色色彩规范**：严格依循 Google MD3E 颜色体系，提供 SurfaceContainerLowest 到 Highest 五级容器阶梯与 Fixed 角色。
 - **物理弹簧微交互动效**：卡片按压与预见式预测返回转场均采用低反弹弹性弹簧曲线（Spring Spec: `DampingRatioLowBouncy`, `StiffnessMediumLow`）。
 - **Android 13+ 主题自适应图标**：中心对齐 66dp 安全视口，内置 Android 13+ Monochrome 单色层，无缝支持系统壁纸 Monet 动态色彩提取。
 
@@ -36,6 +37,8 @@
 - **外部字体导入**：支持从本地文件选择器安装第三方 `.ttf` 或 `.otf` 字体，即刻动态渲染并全局生效。
 
 ### 📰 智能资讯流与流畅滑动
+- **左右横滑切换分区**：首页支持真一手势 `HorizontalPager` 横滑手势左右自由翻页，与顶部导航胶囊条双向物理联动。
+- **分类流独立内存缓存**：不同分类来回切换只加载一次，各分类独立持久化滚动位置，秒切零等待。
 - **无限流式加载**：基于服务端时间戳游标（Cursor）向上流式翻页，列表滑至倒数第 3 项无感静默预加载。
 - **下拉刷新**：首页下拉即拉取服务端最新内容，指示器采用 Material 官方的容器化加载指示器，形状随下拉距离形变；完成或失败均以系统 Toast 反馈，不打断阅读。
 - **回到顶部并刷新**：下翻一段距离后，右下角浮现浮动按钮，单击即平滑回到列表顶部并自动刷新，省去「滚回顶部再下拉」的两步操作。
@@ -89,7 +92,7 @@ ITYou/
 ## 📦 下载与体验
 
 - **运行要求**：Android 8.0 (API 26) 及以上，推荐 Android 14+ 以获得最佳预见式返回动效。
-- **下载安装**：前往仓库的 [**Releases 页面**](https://github.com/NecoArc-Chaos/ITYou/releases) 获取安装包（`ITYou-v2.1.0-release.apk`，内置 R8 深度混淆与 Baseline Profile 优化）。v2.0.0 起提供正式版，此前的预览构建仍在 Releases 页面保留。
+- **下载安装**：前往仓库的 [**Releases 页面**](https://github.com/NecoArc-Chaos/ITYou/releases) 获取安装包（`ITYou-v2.1.1-release.apk`，内置 R8 深度混淆与 Baseline Profile 优化）。v2.0.0 起提供正式版，此前的预览构建仍在 Releases 页面保留。
 
 ---
 

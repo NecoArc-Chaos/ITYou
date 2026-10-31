@@ -34,10 +34,22 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v2.1.1",
+        releaseDate = "2026-10-31",
+        summary = "支持首页手势左右横滑无缝切换分区，深入全面落地 MD3E 表现力设计规范（全套 HCT 48 角色色彩方案、无分割线容器层级与 FilledTonal 触控），升级分类流按需加载与独立缓存。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FEATURE, "左右横滑切换分区：首页支持真一手势 HorizontalPager 左右滑屏切换不同分类，与顶部胶囊条双向物理联动"),
+            ChangeItem(ChangeType.DESIGN, "全面采用 MD3E 风格：补齐全套 HCT 48 角色色彩规范，构建 surfaceContainer 色彩层级，彻底移除传统硬质分割线"),
+            ChangeItem(ChangeType.DESIGN, "顶栏与操作键升级：顶栏采用 MD3E FilledTonal 胶囊触控按钮，胶囊指示器采用无边框设计"),
+            ChangeItem(ChangeType.IMPROVEMENT, "分类流隔离与懒加载：滑动临近分区按需拉取数据，各分类独立持久化浏览位置，丝滑零卡顿")
+        )
+    ),
+    ReleaseNote(
         version = "v2.1.0",
         releaseDate = "2026-10-25",
         summary = "全面接入 MaterialExpressiveTheme 与动效系统，首页分类流支持独立内存缓存（分类间切换只加载一次、零加载秒开）；重构解耦详情页并新增正文大图手势查看器。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "首页分类流缓存：不同分类之间来回选择只加载一次，秒切无需重复网络请求"),
             ChangeItem(ChangeType.DESIGN, "全面接入 MaterialExpressiveTheme 与全局 MotionScheme.expressive() 物理动效"),

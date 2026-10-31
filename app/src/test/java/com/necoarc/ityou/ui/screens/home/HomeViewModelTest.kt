@@ -299,4 +299,33 @@ class HomeViewModelTest {
         assertEquals("再次切回手机分类也不应产生网络请求", 2, repo.callCount)
         assertEquals("应直接从缓存恢复手机分类文章", phoneArticles, vm.uiState.value.articles)
     }
+
+    @Test
+    fun `滑动临近分区调用 ensureCategoryLoaded 按需加载并命中缓存`() = runTest(dispatcher) {
+        val allArticles = listOf(article("all_1"))
+        val autoArticles = listOf(article("auto_1"))
+
+        val repo = FakeRepository(
+            listOf(
+                Result.success(ArticlePage(articles = allArticles, hasMore = true)),
+                Result.success(ArticlePage(articles = autoArticles, hasMore = true))
+            )
+        )
+        val vm = HomeViewModel(repo)
+        advanceUntilIdle()
+
+        assertEquals(1, repo.callCount)
+
+        // 横滑临近汽车分区：按需加载
+        vm.ensureCategoryLoaded(ArticleCategory.AUTOMOTIVE)
+        advanceUntilIdle()
+
+        assertEquals(2, repo.callCount)
+        assertEquals(autoArticles, vm.uiState.value.categoryFeeds[ArticleCategory.AUTOMOTIVE]?.articles)
+
+        // 再次触发 ensureCategoryLoaded：命中缓存不重复发起网络请求
+        vm.ensureCategoryLoaded(ArticleCategory.AUTOMOTIVE)
+        advanceUntilIdle()
+        assertEquals(2, repo.callCount)
+    }
 }

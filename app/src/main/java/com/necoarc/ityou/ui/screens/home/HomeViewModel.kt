@@ -75,29 +75,26 @@ class HomeViewModel(
     private val repository: ArticleRepository = ArticleRepository()
 ) : ViewModel() {
 
-    private val _uiState: MutableStateFlow<HomeUiState>
+    private val categoryJobs = mutableMapOf<ArticleCategory, Job>()
+    private val loadMoreJobs = mutableMapOf<ArticleCategory, Job>()
+
+    private val _uiState: MutableStateFlow<HomeUiState> = MutableStateFlow(
+        HomeUiState(
+            selectedCategory = ArticleCategory.ALL,
+            categoryFeeds = ArticleCategory.entries.associateWith { category ->
+                CategoryFeedState(
+                    isLoading = category == ArticleCategory.ALL,
+                    isInitialized = false
+                )
+            }
+        )
+    )
+    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
-        val initialMap = ArticleCategory.entries.associateWith { category ->
-            CategoryFeedState(
-                isLoading = category == ArticleCategory.ALL,
-                isInitialized = false
-            )
-        }
-        _uiState = MutableStateFlow(
-            HomeUiState(
-                selectedCategory = ArticleCategory.ALL,
-                categoryFeeds = initialMap
-            )
-        )
         // 默认启动首页「全部」分类的数据加载
         loadCategoryPage(category = ArticleCategory.ALL, isRefresh = false)
     }
-
-    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
-
-    private val categoryJobs = mutableMapOf<ArticleCategory, Job>()
-    private val loadMoreJobs = mutableMapOf<ArticleCategory, Job>()
 
     /**
      * 确保某个分类的数据已被拉取。

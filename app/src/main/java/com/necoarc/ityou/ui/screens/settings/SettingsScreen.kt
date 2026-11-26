@@ -192,6 +192,10 @@ fun SettingsScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(modifier = Modifier.height(8.dp))
+                    val connectedLeadingShapes = ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    val connectedMiddleShapes = ButtonGroupDefaults.connectedMiddleButtonShapes()
+                    val connectedTrailingShapes = ButtonGroupDefaults.connectedTrailingButtonShapes()
+
                     ButtonGroup(
                         overflowIndicator = { menuState ->
                             ButtonGroupDefaults.OverflowIndicator(menuState = menuState)
@@ -201,9 +205,9 @@ fun SettingsScreen(
                     ) {
                         ThemeMode.entries.forEachIndexed { index, mode ->
                             val shapes = when (index) {
-                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                ThemeMode.entries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                0 -> connectedLeadingShapes
+                                ThemeMode.entries.lastIndex -> connectedTrailingShapes
+                                else -> connectedMiddleShapes
                             }
                             customItem(
                                 buttonGroupContent = {
@@ -327,9 +331,9 @@ fun SettingsScreen(
                     ) {
                         FONT_SCALE_PRESETS.forEachIndexed { index, (label, scaleValue) ->
                             val shapes = when (index) {
-                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                FONT_SCALE_PRESETS.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                0 -> connectedLeadingShapes
+                                FONT_SCALE_PRESETS.lastIndex -> connectedTrailingShapes
+                                else -> connectedMiddleShapes
                             }
                             val isSelected = kotlin.math.abs(uiState.articleFontScale - scaleValue) < 0.03f
                             customItem(

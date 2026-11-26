@@ -347,7 +347,7 @@ fun DetailScreen(
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
             modifier = Modifier
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
-                .nestedScroll(toolbarScrollBehavior.nestedScrollConnection)
+                .nestedScroll(toolbarScrollBehavior)
         ) { innerPadding ->
             when {
                 uiState.showSkeleton -> {

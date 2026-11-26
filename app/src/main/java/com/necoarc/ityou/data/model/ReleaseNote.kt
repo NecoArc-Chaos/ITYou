@@ -34,10 +34,24 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v2.2.0",
+        releaseDate = "2026-11-26",
+        summary = "深度统一全应用 MD3E 设计语言与 MotionScheme 动效，详情页新增单手友好 HorizontalFloatingToolbar 悬浮工具栏、字号实时调节、主题模式切换、富文本超链接与列表排版，并真正接通高清图片模式。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FEATURE, "详情页悬浮工具栏：引入 MD3E HorizontalFloatingToolbar，单手即可收藏、跳转评论、调节正文字号与分享"),
+            ChangeItem(ChangeType.FEATURE, "个性化阅读增强：新增应用内主题模式切换（跟随系统/浅色/深色）与四档正文字号缩放"),
+            ChangeItem(ChangeType.FEATURE, "富文本排版完善：支持有序/无序列表（ol/ul/li）与正文超链接高亮点击打开"),
+            ChangeItem(ChangeType.DESIGN, "全应用视觉与动效统一：详情/收藏/设置页顶栏全面接入 FilledTonal 按钮与滚动感知切换，消除硬质分割线与阴影，卡片按压接入 MotionScheme"),
+            ChangeItem(ChangeType.DESIGN, "设置页选项升级：采用 MD3E ButtonGroup 连接按钮组承载主题模式与字号选择"),
+            ChangeItem(ChangeType.FIX, "修复高清图片模式开关：真实控制 IT之家 图床图片压缩参数与原图加载策略")
+        )
+    ),
+    ReleaseNote(
         version = "v2.1.1",
         releaseDate = "2026-10-31",
         summary = "支持首页手势左右横滑无缝切换分区，深入全面落地 MD3E 表现力设计规范（全套 HCT 48 角色色彩方案、无分割线容器层级与 FilledTonal 触控），升级分类流按需加载与独立缓存。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "左右横滑切换分区：首页支持真一手势 HorizontalPager 左右滑屏切换不同分类，与顶部胶囊条双向物理联动"),
             ChangeItem(ChangeType.DESIGN, "全面采用 MD3E 风格：补齐全套 HCT 48 角色色彩规范，构建 surfaceContainer 色彩层级，彻底移除传统硬质分割线"),

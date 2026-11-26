@@ -2,6 +2,7 @@ package com.necoarc.ityou
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContentTransitionScope
@@ -12,9 +13,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -27,6 +30,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.necoarc.ityou.data.model.BackAnimationType
+import com.necoarc.ityou.data.model.ThemeMode
 import com.necoarc.ityou.data.repository.SettingsRepository
 import com.necoarc.ityou.ui.screens.detail.DetailScreen
 import com.necoarc.ityou.ui.screens.favorites.FavoritesScreen
@@ -49,6 +53,26 @@ class MainActivity : ComponentActivity() {
             // collectAsStateWithLifecycle：退到后台立即停止收集，避免回前台时集中重组
             val settings by settingsRepo.settings.collectAsStateWithLifecycle()
 
+            val systemDark = isSystemInDarkTheme()
+            val isDarkTheme = when (settings.themeMode) {
+                ThemeMode.SYSTEM -> systemDark
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+            }
+
+            LaunchedEffect(isDarkTheme) {
+                enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.auto(
+                        android.graphics.Color.TRANSPARENT,
+                        android.graphics.Color.TRANSPARENT
+                    ) { isDarkTheme },
+                    navigationBarStyle = SystemBarStyle.auto(
+                        android.graphics.Color.TRANSPARENT,
+                        android.graphics.Color.TRANSPARENT
+                    ) { isDarkTheme }
+                )
+            }
+
             // 性能要点：resolveFontFamily 需要读资产/文件并解析字体表，
             // 必须 remember，避免每次普通重组都重复构建 Typeface。
             // 默认加载工程内置资产（馬路口圓體），同时支持用户选择系统字体或自定义字体。
@@ -61,7 +85,9 @@ class MainActivity : ComponentActivity() {
             }
 
             ITYouTheme(
+                darkTheme = isDarkTheme,
                 dynamicColor = settings.dynamicColorEnabled,
+                highQualityImage = settings.highQualityImage,
                 fontFamily = dynamicFontFamily
             ) {
                 Surface(modifier = Modifier.fillMaxSize()) {

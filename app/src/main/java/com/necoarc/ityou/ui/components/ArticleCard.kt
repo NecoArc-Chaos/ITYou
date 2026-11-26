@@ -1,6 +1,7 @@
 package com.necoarc.ityou.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -35,6 +36,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.necoarc.ityou.data.model.Article
+import com.necoarc.ityou.data.remote.ImageQualityHelper
+import com.necoarc.ityou.ui.theme.LocalHighQualityImage
 import com.necoarc.ityou.ui.theme.ShapeCache
 
 /**
@@ -61,7 +64,8 @@ internal fun ArticleCardFrame(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.98f else 1f,
+        targetValue = if (isPressed) 0.975f else 1f,
+        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
         label = "ArticleCardScale"
     )
 
@@ -72,9 +76,10 @@ internal fun ArticleCardFrame(
                 scaleX = scale
                 scaleY = scale
             }
+            .clip(ShapeCache.smooth24)
             .clickable(
                 interactionSource = interactionSource,
-                indication = null,
+                indication = LocalIndication.current,
                 onClick = onClick
             )
     } else {
@@ -248,7 +253,14 @@ private fun ArticleThumbnail(article: Article) {
             .background(MaterialTheme.colorScheme.surfaceContainerHighest),
         contentAlignment = Alignment.Center
     ) {
-        val cover = article.coverImageUrl
+        val highQuality = LocalHighQualityImage.current
+        val cover = remember(article.coverImageUrl, highQuality) {
+            ImageQualityHelper.resolveUrl(
+                rawUrl = article.coverImageUrl,
+                highQuality = highQuality,
+                isThumbnail = true
+            )
+        }
         if (cover != null) {
             AsyncImage(
                 model = cover,

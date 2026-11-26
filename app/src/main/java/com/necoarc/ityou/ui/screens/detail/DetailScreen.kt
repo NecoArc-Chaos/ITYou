@@ -1,5 +1,10 @@
 package com.necoarc.ityou.ui.screens.detail
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,47 +15,65 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.FormatSize
 import androidx.compose.material.icons.outlined.OpenInBrowser
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FabPosition
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FloatingToolbarDefaults
+import androidx.compose.material3.FloatingToolbarExitDirection
+import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.necoarc.ityou.data.model.FavoriteArticle
 import com.necoarc.ityou.data.repository.FavoriteRepository
+import com.necoarc.ityou.data.repository.SettingsRepository
 import com.necoarc.ityou.data.share.ArticleSharer
 import com.necoarc.ityou.ui.components.DetailSkeletonScreen
 import com.necoarc.ityou.ui.screens.detail.components.DetailContent
 import com.necoarc.ityou.ui.screens.detail.components.ImageViewerDialog
+import com.necoarc.ityou.ui.screens.detail.components.commentsHeaderIndex
 import com.necoarc.ityou.ui.theme.ShapeCache
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,7 +91,10 @@ fun DetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val favoriteRepository = remember(context) { FavoriteRepository.getInstance(context) }
+    val settingsRepository = remember(context) { SettingsRepository.getInstance(context) }
+    val settings by settingsRepository.settings.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
     // 收藏状态以仓库为唯一数据源
@@ -77,6 +103,7 @@ fun DetailScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     var toastMessage by remember { mutableStateOf<String?>(null) }
+    var showFontControls by remember { mutableStateOf(false) }
 
     // 正文大图手势全屏查看状态
     var previewingImage by remember { mutableStateOf<Pair<String, String?>?>(null) }
@@ -102,28 +129,143 @@ fun DetailScreen(
         }
     }
 
+    val topAppBarScrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val toolbarScrollBehavior = FloatingToolbarDefaults.exitAlwaysScrollBehavior(
+        exitDirection = FloatingToolbarExitDirection.Bottom
+    )
+    val showScrolledTitle by remember {
+        derivedStateOf { listState.firstVisibleItemIndex >= 1 }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = {},
+                    scrollBehavior = topAppBarScrollBehavior,
+                    title = {
+                        AnimatedVisibility(
+                            visible = showScrolledTitle && shareTitle.isNotBlank(),
+                            enter = fadeIn(animationSpec = MaterialTheme.motionScheme.fastEffectsSpec()),
+                            exit = fadeOut(animationSpec = MaterialTheme.motionScheme.fastEffectsSpec())
+                        ) {
+                            Text(
+                                text = shareTitle,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    },
                     navigationIcon = {
-                        IconButton(onClick = onBackClick) {
+                        FilledTonalIconButton(
+                            onClick = onBackClick,
+                            shape = ShapeCache.smoothPill,
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .size(38.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "返回"
+                                contentDescription = "返回",
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     },
                     actions = {
                         if (articleUrl.isNotEmpty()) {
-                            IconButton(onClick = { uriHandler.openUri(articleUrl) }) {
+                            FilledTonalIconButton(
+                                onClick = { uriHandler.openUri(articleUrl) },
+                                shape = ShapeCache.smoothPill,
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier
+                                    .padding(end = 8.dp)
+                                    .size(38.dp)
+                            ) {
                                 Icon(
                                     imageVector = Icons.Outlined.OpenInBrowser,
-                                    contentDescription = "在浏览器中打开"
+                                    contentDescription = "在浏览器中打开",
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
+                    )
+                )
+            },
+            floatingActionButtonPosition = FabPosition.Center,
+            floatingActionButton = {
+                if (detail == null) return@Scaffold
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // 快捷字号调节胶囊浮层
+                    AnimatedVisibility(
+                        visible = showFontControls,
+                        enter = scaleIn(
+                            initialScale = 0.9f,
+                            animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()
+                        ) + fadeIn(animationSpec = MaterialTheme.motionScheme.fastEffectsSpec()),
+                        exit = scaleOut(
+                            targetScale = 0.9f,
+                            animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()
+                        ) + fadeOut(animationSpec = MaterialTheme.motionScheme.fastEffectsSpec())
+                    ) {
+                        Surface(
+                            shape = ShapeCache.smoothPill,
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                TextButton(
+                                    onClick = {
+                                        settingsRepository.setArticleFontScale(settings.articleFontScale - 0.10f)
+                                    },
+                                    enabled = settings.articleFontScale > SettingsRepository.MIN_FONT_SCALE
+                                ) {
+                                    Text("A-", fontWeight = FontWeight.Bold)
+                                }
+                                TextButton(
+                                    onClick = { settingsRepository.setArticleFontScale(1.0f) }
+                                ) {
+                                    Text("${(settings.articleFontScale * 100).toInt()}%")
+                                }
+                                TextButton(
+                                    onClick = {
+                                        settingsRepository.setArticleFontScale(settings.articleFontScale + 0.10f)
+                                    },
+                                    enabled = settings.articleFontScale < SettingsRepository.MAX_FONT_SCALE
+                                ) {
+                                    Text("A+", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    // MD3E 底部悬浮工具栏：单手即可触及收藏、跳评论、字号、分享
+                    HorizontalFloatingToolbar(
+                        expanded = true,
+                        colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(
+                            toolbarContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            toolbarContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ),
+                        scrollBehavior = toolbarScrollBehavior
+                    ) {
                         IconButton(
                             onClick = {
                                 if (articleId.isNotBlank()) {
@@ -143,14 +285,43 @@ fun DetailScreen(
                         ) {
                             Icon(
                                 imageVector = if (isStarred) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder,
-                                contentDescription = if (isStarred) "取消收藏" else "收藏",
-                                tint = if (isStarred) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                }
+                                contentDescription = if (isStarred) "取消收藏" else "收藏"
                             )
                         }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        IconButton(
+                            enabled = detail != null,
+                            onClick = {
+                                detail?.let { loaded ->
+                                    coroutineScope.launch {
+                                        runCatching {
+                                            listState.animateScrollToItem(commentsHeaderIndex(loaded))
+                                        }
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.Chat,
+                                contentDescription = "跳转评论区"
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        IconButton(
+                            onClick = { showFontControls = !showFontControls }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.FormatSize,
+                                contentDescription = "调节字号"
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
                         IconButton(
                             onClick = {
                                 if (shareUrl.isNotBlank()) {
@@ -169,14 +340,14 @@ fun DetailScreen(
                                 contentDescription = "分享"
                             )
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background
-                    )
-                )
+                    }
+                }
             },
             containerColor = MaterialTheme.colorScheme.background,
-            snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            modifier = Modifier
+                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
+                .nestedScroll(toolbarScrollBehavior.nestedScrollConnection)
         ) { innerPadding ->
             when {
                 uiState.showSkeleton -> {
@@ -195,6 +366,7 @@ fun DetailScreen(
                         onRetryComments = viewModel::retryComments,
                         onExpandReplies = viewModel::expandCommentReplies,
                         onRelatedArticleClick = onRelatedArticleClick,
+                        articleFontScale = settings.articleFontScale,
                         onImageClick = { url, caption ->
                             previewingImage = url to caption
                         }

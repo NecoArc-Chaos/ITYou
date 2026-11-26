@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -34,13 +35,18 @@ import androidx.compose.material.icons.outlined.MotionPhotosOn
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonGroup
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilledTonalToggleButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -61,6 +67,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
@@ -71,6 +78,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.necoarc.ityou.BuildConfig
 import com.necoarc.ityou.data.model.BackAnimationType
+import com.necoarc.ityou.data.model.ThemeMode
 import com.necoarc.ityou.ui.components.VersionTimelineSheet
 import com.necoarc.ityou.ui.theme.BUNDLED_FONT_CREDIT
 import com.necoarc.ityou.ui.theme.BUNDLED_FONT_NAME
@@ -117,9 +125,12 @@ fun SettingsScreen(
         }
     }
 
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+
     Scaffold(
         topBar = {
             TopAppBar(
+                scrollBehavior = scrollBehavior,
                 title = {
                     Text(
                         text = "设置",
@@ -128,20 +139,32 @@ fun SettingsScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    FilledTonalIconButton(
+                        onClick = onBackClick,
+                        shape = ShapeCache.smoothPill,
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .size(38.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = "返回",
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
                 )
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
-        modifier = modifier
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -162,6 +185,62 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    // 主题外观选择（MD3E Connected ButtonGroup）
+                    Text(
+                        text = "主题模式",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ButtonGroup(
+                        overflowIndicator = { menuState ->
+                            ButtonGroupDefaults.OverflowIndicator(menuState = menuState)
+                        },
+                        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        ThemeMode.entries.forEachIndexed { index, mode ->
+                            val shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                ThemeMode.entries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            }
+                            customItem(
+                                buttonGroupContent = {
+                                    val btnInteraction = remember { MutableInteractionSource() }
+                                    FilledTonalToggleButton(
+                                        checked = uiState.themeMode == mode,
+                                        onCheckedChange = {
+                                            viewModel.sendIntent(SettingsUiIntent.SetThemeMode(mode))
+                                        },
+                                        shapes = shapes,
+                                        interactionSource = btnInteraction,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .animateWidth(btnInteraction)
+                                    ) {
+                                        Text(
+                                            text = mode.title,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            maxLines = 1
+                                        )
+                                    }
+                                },
+                                menuContent = { menuState ->
+                                    DropdownMenuItem(
+                                        text = { Text(mode.title) },
+                                        onClick = {
+                                            viewModel.sendIntent(SettingsUiIntent.SetThemeMode(mode))
+                                            menuState.dismiss()
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -201,7 +280,7 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "文章流与正文优先拉取原分辨率高清大图",
+                                text = "文章流与正文优先拉取原分辨率高清大图（关闭则省流压缩）",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.outline
                             )
@@ -210,6 +289,81 @@ fun SettingsScreen(
                             checked = uiState.highQualityImage,
                             onCheckedChange = { viewModel.sendIntent(SettingsUiIntent.SetHighQualityImage(it)) }
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // 正文阅读字号缩放（MD3E Connected ButtonGroup）
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "正文阅读字号",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Surface(
+                            shape = ShapeCache.smoothPill,
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = "${(uiState.articleFontScale * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ButtonGroup(
+                        overflowIndicator = { menuState ->
+                            ButtonGroupDefaults.OverflowIndicator(menuState = menuState)
+                        },
+                        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        FONT_SCALE_PRESETS.forEachIndexed { index, (label, scaleValue) ->
+                            val shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                FONT_SCALE_PRESETS.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            }
+                            val isSelected = kotlin.math.abs(uiState.articleFontScale - scaleValue) < 0.03f
+                            customItem(
+                                buttonGroupContent = {
+                                    val btnInteraction = remember { MutableInteractionSource() }
+                                    FilledTonalToggleButton(
+                                        checked = isSelected,
+                                        onCheckedChange = {
+                                            viewModel.sendIntent(SettingsUiIntent.SetArticleFontScale(scaleValue))
+                                        },
+                                        shapes = shapes,
+                                        interactionSource = btnInteraction,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .animateWidth(btnInteraction)
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            maxLines = 1
+                                        )
+                                    }
+                                },
+                                menuContent = { menuState ->
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = {
+                                            viewModel.sendIntent(SettingsUiIntent.SetArticleFontScale(scaleValue))
+                                            menuState.dismiss()
+                                        }
+                                    )
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -658,17 +812,19 @@ private fun SelectableMotionTile(
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.985f else 1f,
+        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
         label = "TileScale"
     )
 
+    // 纯粹通过容器色阶表达选中态层级，完全不使用硬投影
     Surface(
         shape = ShapeCache.smooth16,
         color = if (isSelected) {
-            MaterialTheme.colorScheme.surfaceContainerLowest
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
         } else {
-            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.35f)
+            MaterialTheme.colorScheme.surfaceContainerLowest
         },
-        shadowElevation = if (isSelected) 2.dp else 0.dp,
+        shadowElevation = 0.dp,
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer {
@@ -678,7 +834,7 @@ private fun SelectableMotionTile(
             .clip(ShapeCache.smooth16)
             .clickable(
                 interactionSource = interactionSource,
-                indication = null,
+                indication = LocalIndication.current,
                 onClick = onClick
             )
     ) {
@@ -747,6 +903,14 @@ private fun formatFileSize(bytes: Long): String {
         String.format(Locale.US, "%.1f KB", kb)
     }
 }
+
+/** 正文阅读字号预设档位 */
+private val FONT_SCALE_PRESETS = listOf(
+    "小" to 0.85f,
+    "标准" to 1.00f,
+    "大" to 1.15f,
+    "特大" to 1.30f
+)
 
 /** 内置字体（馬路口圓體）的项目主页。 */
 private const val FONT_SOURCE_URL = "https://github.com/max32002/maruko-gothic"

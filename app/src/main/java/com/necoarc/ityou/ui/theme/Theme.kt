@@ -10,6 +10,8 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -116,11 +118,15 @@ private val DarkColorScheme = darkColorScheme(
     onTertiaryFixedVariant = ITHomeOnTertiaryFixedVariant
 )
 
+/** 当前是否启用高清图片模式（全局注入，确保设置切换立即同步所有图片加载）。 */
+val LocalHighQualityImage = compositionLocalOf { true }
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ITYouTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
+    highQualityImage: Boolean = true,
     fontFamily: FontFamily = FontFamily.Default,
     content: @Composable () -> Unit
 ) {
@@ -142,11 +148,13 @@ fun ITYouTheme(
 
     val typography = remember(fontFamily) { getExpressiveTypography(fontFamily) }
 
-    MaterialExpressiveTheme(
-        colorScheme = colorScheme,
-        motionScheme = MotionScheme.expressive(),
-        typography = typography,
-        shapes = ExpressiveShapes,
-        content = content
-    )
+    CompositionLocalProvider(LocalHighQualityImage provides highQualityImage) {
+        MaterialExpressiveTheme(
+            colorScheme = colorScheme,
+            motionScheme = MotionScheme.expressive(),
+            typography = typography,
+            shapes = ExpressiveShapes,
+            content = content
+        )
+    }
 }

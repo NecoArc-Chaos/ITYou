@@ -53,12 +53,24 @@ data class RelatedArticle(
 )
 
 /**
+ * 正文段落或列表中的可点击内联超链接。
+ */
+@Immutable
+data class InlineLink(
+    val text: String,
+    val url: String
+)
+
+/**
  * 仿 ReadYou 的原生 Compose 结构化排版块。
  */
 @Immutable
 sealed interface ContentBlock {
     @Immutable
-    data class Paragraph(val text: String) : ContentBlock
+    data class Paragraph(
+        val text: String,
+        val links: List<InlineLink> = emptyList()
+    ) : ContentBlock
 
     @Immutable
     data class Heading(val text: String, val level: Int = 2) : ContentBlock
@@ -71,7 +83,17 @@ sealed interface ContentBlock {
     ) : ContentBlock
 
     @Immutable
-    data class BlockQuote(val text: String) : ContentBlock
+    data class BlockQuote(
+        val text: String,
+        val links: List<InlineLink> = emptyList()
+    ) : ContentBlock
+
+    @Immutable
+    data class ListItemBlock(
+        val text: String,
+        val orderedIndex: Int? = null,
+        val links: List<InlineLink> = emptyList()
+    ) : ContentBlock
 
     @Immutable
     data class CodeBlock(val code: String, val language: String = "") : ContentBlock

@@ -288,4 +288,49 @@ class HtmlParserTest {
         // 非 http 开头
         assertNull(HtmlParser.extractCanonicalUrl("""<link rel="canonical" href="/1/009/494.htm" />"""))
     }
+
+    @Test
+    fun parseArticleDetail_extractsListsAndInlineLinksCorrectly() {
+        val sampleHtml = """
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <h1 class="post-title">富文本列表与超链接测试</h1>
+                <div id="paragraph">
+                    <p>详情参见 <a href="https://www.ithome.com/1/001.htm">官方公告</a> 与 <a href="/2/002.htm">补充说明</a>。</p>
+                    <ul>
+                        <li>支持无线快充</li>
+                        <li>搭载最新架构处理器</li>
+                    </ul>
+                    <ol>
+                        <li>第一步检查配置</li>
+                        <li>第二步执行更新</li>
+                    </ol>
+                </div>
+            </body>
+            </html>
+        """.trimIndent()
+
+        val detail = HtmlParser.parseArticleDetail(sampleHtml, "9001")
+        assertEquals(5, detail.contentBlocks.size)
+
+        val paragraph = detail.contentBlocks[0] as ContentBlock.Paragraph
+        assertEquals(2, paragraph.links.size)
+        assertEquals("官方公告", paragraph.links[0].text)
+        assertEquals("https://www.ithome.com/1/001.htm", paragraph.links[0].url)
+        assertEquals("补充说明", paragraph.links[1].text)
+        assertEquals("https://www.ithome.com/2/002.htm", paragraph.links[1].url)
+
+        val ul1 = detail.contentBlocks[1] as ContentBlock.ListItemBlock
+        assertNull(ul1.orderedIndex)
+        assertEquals("支持无线快充", ul1.text)
+
+        val ol1 = detail.contentBlocks[3] as ContentBlock.ListItemBlock
+        assertEquals(1, ol1.orderedIndex)
+        assertEquals("第一步检查配置", ol1.text)
+
+        val ol2 = detail.contentBlocks[4] as ContentBlock.ListItemBlock
+        assertEquals(2, ol2.orderedIndex)
+        assertEquals("第二步执行更新", ol2.text)
+    }
 }

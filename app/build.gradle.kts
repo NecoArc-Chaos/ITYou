@@ -16,8 +16,8 @@ android {
         applicationId = "com.necoarc.ityou"
         minSdk = 26
         targetSdk = 37
-        versionCode = 18
-        versionName = "2.1.1"
+        versionCode = 19
+        versionName = "2.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

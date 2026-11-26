@@ -1,6 +1,7 @@
 package com.necoarc.ityou.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -30,7 +31,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.necoarc.ityou.data.model.Article
+import com.necoarc.ityou.data.remote.ImageQualityHelper
 import com.necoarc.ityou.ui.theme.Dimens
+import com.necoarc.ityou.ui.theme.LocalHighQualityImage
 import com.necoarc.ityou.ui.theme.ShapeCache
 
 /**
@@ -51,7 +54,8 @@ internal fun HeroCardShell(
         val interactionSource = remember { MutableInteractionSource() }
         val isPressed by interactionSource.collectIsPressedAsState()
         val scale by animateFloatAsState(
-            targetValue = if (isPressed) 0.98f else 1f,
+            targetValue = if (isPressed) 0.975f else 1f,
+            animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
             label = "HeroCardScale"
         )
         modifier
@@ -64,7 +68,7 @@ internal fun HeroCardShell(
             .clip(ShapeCache.smooth28)
             .clickable(
                 interactionSource = interactionSource,
-                indication = null,
+                indication = LocalIndication.current,
                 onClick = onClick
             )
     } else {
@@ -85,9 +89,17 @@ fun HeroArticleCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val highQuality = LocalHighQualityImage.current
+    val coverUrl = remember(article.coverImageUrl, highQuality) {
+        ImageQualityHelper.resolveUrl(
+            rawUrl = article.coverImageUrl,
+            highQuality = highQuality,
+            isThumbnail = false
+        )
+    }
     HeroCardShell(modifier = modifier, onClick = onClick) {
         AsyncImage(
-            model = article.coverImageUrl,
+            model = coverUrl,
             contentDescription = article.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()

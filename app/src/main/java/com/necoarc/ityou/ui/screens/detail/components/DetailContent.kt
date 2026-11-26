@@ -26,17 +26,25 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,8 +52,11 @@ import coil.compose.AsyncImage
 import com.necoarc.ityou.data.model.ArticleComment
 import com.necoarc.ityou.data.model.ArticleDetail
 import com.necoarc.ityou.data.model.ContentBlock
+import com.necoarc.ityou.data.model.InlineLink
 import com.necoarc.ityou.data.model.RelatedArticle
+import com.necoarc.ityou.data.remote.ImageQualityHelper
 import com.necoarc.ityou.ui.theme.Dimens
+import com.necoarc.ityou.ui.theme.LocalHighQualityImage
 import com.necoarc.ityou.ui.theme.ShapeCache
 
 @Composable
@@ -60,8 +71,15 @@ fun DetailContent(
     onRetryComments: () -> Unit,
     onExpandReplies: (String) -> Unit,
     onRelatedArticleClick: (id: String, url: String, title: String, pubTime: String) -> Unit,
+    articleFontScale: Float = 1.0f,
     onImageClick: (url: String, caption: String?) -> Unit = { _, _ -> }
 ) {
+    val bodyLargeScaled = rememberScaledTextStyle(MaterialTheme.typography.bodyLarge, articleFontScale)
+    val bodyMediumScaled = rememberScaledTextStyle(MaterialTheme.typography.bodyMedium, articleFontScale)
+    val heading2Scaled = rememberScaledTextStyle(MaterialTheme.typography.titleLarge, articleFontScale)
+    val heading3Scaled = rememberScaledTextStyle(MaterialTheme.typography.titleMedium, articleFontScale)
+    val linkColor = MaterialTheme.colorScheme.primary
+
     LazyColumn(
         state = listState,
         modifier = Modifier
@@ -83,14 +101,14 @@ fun DetailContent(
             )
         }
 
-        // 2. 元数据栏（作者、时间）
+        // 2. 元数据栏（作者、时间，纯容器胶囊表达，无硬质分割线）
         item(key = "detail_meta", contentType = "meta") {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Surface(
-                    shape = ShapeCache.smooth8,
+                    shape = ShapeCache.smoothPill,
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Text(
@@ -98,24 +116,27 @@ fun DetailContent(
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
                     )
                 }
                 if (detail.publishTime.isNotEmpty()) {
-                    Text(
-                        text = detail.publishTime,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.outline
-                    )
+                    Surface(
+                        shape = ShapeCache.smoothPill,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ) {
+                        Text(
+                            text = detail.publishTime,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                        )
+                    }
                 }
             }
         }
 
-        item(key = "detail_divider", contentType = "divider") {
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                thickness = 1.dp
-            )
+        item(key = "detail_meta_spacer", contentType = "spacer") {
+            Spacer(modifier = Modifier.height(4.dp))
         }
 
         // 3. 原生富文本排版流
@@ -126,10 +147,13 @@ fun DetailContent(
         ) { _, block ->
             when (block) {
                 is ContentBlock.Paragraph -> {
+                    val annotated = remember(block.text, block.links, linkColor) {
+                        buildLinkedText(block.text, block.links, linkColor)
+                    }
                     SelectableText {
                         Text(
-                            text = block.text,
-                            style = MaterialTheme.typography.bodyLarge,
+                            text = annotated,
+                            style = bodyLargeScaled,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -140,11 +164,7 @@ fun DetailContent(
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = block.text,
-                            style = if (block.level == 2) {
-                                MaterialTheme.typography.titleLarge
-                            } else {
-                                MaterialTheme.typography.titleMedium
-                            },
+                            style = if (block.level == 2) heading2Scaled else heading3Scaled,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -154,13 +174,23 @@ fun DetailContent(
                 is ContentBlock.Image -> {
                     ArticleImageBlock(
                         block = block,
-                        onImageClick = { onImageClick(block.url, block.caption) }
+                        onImageClick = {
+                            val fullResUrl = ImageQualityHelper.resolveUrl(
+                                rawUrl = block.url,
+                                highQuality = true,
+                                isThumbnail = false
+                            ) ?: block.url
+                            onImageClick(fullResUrl, block.caption)
+                        }
                     )
                 }
 
                 is ContentBlock.BlockQuote -> {
+                    val annotated = remember(block.text, block.links, linkColor) {
+                        buildLinkedText(block.text, block.links, linkColor)
+                    }
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         shape = ShapeCache.smooth16,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -175,17 +205,60 @@ fun DetailContent(
                                     .fillMaxHeight()
                                     .background(
                                         MaterialTheme.colorScheme.primary,
-                                        ShapeCache.smooth8
+                                        ShapeCache.smoothPill
                                     )
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             SelectableText {
                                 Text(
-                                    text = block.text,
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = annotated,
+                                    style = bodyMediumScaled,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                        }
+                    }
+                }
+
+                is ContentBlock.ListItemBlock -> {
+                    val annotated = remember(block.text, block.links, linkColor) {
+                        buildLinkedText(block.text, block.links, linkColor)
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 4.dp),
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (block.orderedIndex != null) {
+                            Surface(
+                                shape = ShapeCache.smoothPill,
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.padding(top = 3.dp)
+                            ) {
+                                Text(
+                                    text = "${block.orderedIndex}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                )
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 10.dp)
+                                    .size(6.dp)
+                                    .background(MaterialTheme.colorScheme.primary, ShapeCache.smoothPill)
+                            )
+                        }
+                        SelectableText {
+                            Text(
+                                text = annotated,
+                                style = bodyLargeScaled,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }
@@ -199,7 +272,7 @@ fun DetailContent(
                         Text(
                             text = block.code,
                             fontFamily = FontFamily.Monospace,
-                            fontSize = 13.sp,
+                            fontSize = (13f * articleFontScale).sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .horizontalScroll(rememberScrollState())
@@ -209,10 +282,22 @@ fun DetailContent(
                 }
 
                 is ContentBlock.Divider -> {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(36.dp)
+                                .height(4.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                                    ShapeCache.smoothPill
+                                )
+                        )
+                    }
                 }
             }
         }
@@ -326,7 +411,62 @@ fun DetailContent(
         }
 
         item(key = "detail_bottom_spacer", contentType = "spacer") {
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(88.dp))
+        }
+    }
+}
+
+/** 计算评论区标题在 LazyColumn 中的精确索引，供底部浮动工具栏一键定位评论。 */
+fun commentsHeaderIndex(detail: ArticleDetail): Int {
+    var index = 3 + detail.contentBlocks.size
+    if (detail.relatedArticles.isNotEmpty()) {
+        index += 1 + detail.relatedArticles.size
+    }
+    return index
+}
+
+@Composable
+private fun rememberScaledTextStyle(style: TextStyle, scale: Float): TextStyle =
+    remember(style, scale) {
+        if (kotlin.math.abs(scale - 1f) < 0.01f) {
+            style
+        } else {
+            style.copy(
+                fontSize = style.fontSize * scale,
+                lineHeight = style.lineHeight * scale
+            )
+        }
+    }
+
+internal fun buildLinkedText(
+    text: String,
+    links: List<InlineLink>,
+    linkColor: Color
+): AnnotatedString {
+    if (links.isEmpty()) return AnnotatedString(text)
+    return buildAnnotatedString {
+        append(text)
+        var searchCursor = 0
+        links.forEach { link ->
+            val matchIndex = text.indexOf(link.text, startIndex = searchCursor)
+            if (matchIndex >= 0) {
+                val endIndex = matchIndex + link.text.length
+                addLink(
+                    LinkAnnotation.Url(
+                        url = link.url,
+                        styles = TextLinkStyles(
+                            style = SpanStyle(
+                                color = linkColor,
+                                fontWeight = FontWeight.Medium,
+                                textDecoration = TextDecoration.Underline
+                            )
+                        )
+                    ),
+                    start = matchIndex,
+                    end = endIndex
+                )
+                searchCursor = endIndex
+            }
         }
     }
 }
@@ -375,7 +515,11 @@ fun RelatedArticleItem(
                 }
             }
 
-            item.coverImageUrl?.let { imageUrl ->
+            item.coverImageUrl?.let { rawImg ->
+                val highQuality = LocalHighQualityImage.current
+                val imageUrl = remember(rawImg, highQuality) {
+                    ImageQualityHelper.resolveUrl(rawImg, highQuality = highQuality, isThumbnail = true)
+                }
                 AsyncImage(
                     model = imageUrl,
                     contentDescription = item.title,
@@ -419,8 +563,16 @@ fun ArticleImageBlock(
                     )
             }
 
+            val highQuality = LocalHighQualityImage.current
+            val imageUrl = remember(block.url, highQuality) {
+                ImageQualityHelper.resolveUrl(
+                    rawUrl = block.url,
+                    highQuality = highQuality,
+                    isThumbnail = false
+                )
+            }
             AsyncImage(
-                model = block.url,
+                model = imageUrl,
                 contentDescription = block.caption,
                 contentScale = ContentScale.FillWidth,
                 modifier = imageModifier
@@ -452,6 +604,7 @@ fun blockContentType(block: ContentBlock): String = when (block) {
     is ContentBlock.Heading -> "heading"
     is ContentBlock.Image -> "image"
     is ContentBlock.BlockQuote -> "quote"
+    is ContentBlock.ListItemBlock -> "list_item"
     is ContentBlock.CodeBlock -> "code"
     is ContentBlock.Divider -> "divider"
 }

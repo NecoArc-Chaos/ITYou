@@ -1,8 +1,6 @@
 package com.necoarc.ityou.ui.screens.home
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
@@ -60,6 +59,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -148,15 +148,18 @@ fun HomeScreen(
         }
     }
 
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+
     Scaffold(
         topBar = {
             HomeTopBar(
+                scrollBehavior = scrollBehavior,
                 onSettingsClick = onSettingsClick,
                 onFavoritesClick = onFavoritesClick
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
-        modifier = modifier
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -307,10 +310,12 @@ private fun Md3ePullToRefreshIndicator(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeTopBar(
+    scrollBehavior: TopAppBarScrollBehavior,
     onSettingsClick: () -> Unit,
     onFavoritesClick: () -> Unit
 ) {
     TopAppBar(
+        scrollBehavior = scrollBehavior,
         title = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -503,13 +508,10 @@ private fun CategoryRow(
         ) { category ->
             val isSelected = selectedCategory == category
 
-            // MD3E 弹性微交互：选中项具有平滑的缩放动效
+            // MD3E 弹性微交互：统一读取主题 MotionScheme 的 fastSpatialSpec
             val chipScale by animateFloatAsState(
                 targetValue = if (isSelected) 1.05f else 1.0f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                ),
+                animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
                 label = "CategoryChipScale"
             )
 

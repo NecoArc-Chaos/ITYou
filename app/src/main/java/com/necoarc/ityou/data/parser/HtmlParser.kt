@@ -4,6 +4,7 @@ import com.necoarc.ityou.data.model.Article
 import com.necoarc.ityou.data.model.ArticleCategory
 import com.necoarc.ityou.data.model.ArticleDetail
 import com.necoarc.ityou.data.model.ContentBlock
+import com.necoarc.ityou.data.model.InlineLink
 import com.necoarc.ityou.data.model.RelatedArticle
 import org.json.JSONObject
 import org.jsoup.Jsoup
@@ -382,7 +383,14 @@ object HtmlParser {
                         imageBlockOf(img)?.let(blocks::add)
                     } else {
                         val text = child.text().trim()
-                        if (text.isNotEmpty()) blocks.add(ContentBlock.Paragraph(text = text))
+                        if (text.isNotEmpty()) {
+                            blocks.add(
+                                ContentBlock.Paragraph(
+                                    text = text,
+                                    links = extractLinks(child)
+                                )
+                            )
+                        }
                     }
                 }
                 "h1", "h2" -> {
@@ -395,7 +403,42 @@ object HtmlParser {
                 }
                 "blockquote" -> {
                     val text = child.text().trim()
-                    if (text.isNotEmpty()) blocks.add(ContentBlock.BlockQuote(text = text))
+                    if (text.isNotEmpty()) {
+                        blocks.add(
+                            ContentBlock.BlockQuote(
+                                text = text,
+                                links = extractLinks(child)
+                            )
+                        )
+                    }
+                }
+                "ul" -> {
+                    child.select("> li").forEach { li ->
+                        val text = li.text().trim()
+                        if (text.isNotEmpty()) {
+                            blocks.add(
+                                ContentBlock.ListItemBlock(
+                                    text = text,
+                                    orderedIndex = null,
+                                    links = extractLinks(li)
+                                )
+                            )
+                        }
+                    }
+                }
+                "ol" -> {
+                    child.select("> li").forEachIndexed { idx, li ->
+                        val text = li.text().trim()
+                        if (text.isNotEmpty()) {
+                            blocks.add(
+                                ContentBlock.ListItemBlock(
+                                    text = text,
+                                    orderedIndex = idx + 1,
+                                    links = extractLinks(li)
+                                )
+                            )
+                        }
+                    }
                 }
                 "pre", "code" -> {
                     val code = child.text().trim()
@@ -405,6 +448,23 @@ object HtmlParser {
                 "img" -> imageBlockOf(child)?.let(blocks::add)
                 "div", "section", "article" -> parseElementRecursive(child, blocks)
             }
+        }
+    }
+
+    private fun extractLinks(element: Element): List<InlineLink> {
+        val anchors = element.select("a[href]")
+        if (anchors.isEmpty()) return emptyList()
+        return anchors.mapNotNull { a ->
+            val label = a.text().trim()
+            val rawHref = a.attr("href").trim()
+            if (label.isEmpty() || rawHref.isEmpty()) return@mapNotNull null
+            val resolvedUrl = when {
+                rawHref.startsWith("http://") || rawHref.startsWith("https://") -> rawHref
+                rawHref.startsWith("//") -> "https:$rawHref"
+                rawHref.startsWith("/") -> "https://www.ithome.com$rawHref"
+                else -> return@mapNotNull null
+            }
+            InlineLink(text = label, url = resolvedUrl)
         }
     }
 

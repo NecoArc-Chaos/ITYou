@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.necoarc.ityou.data.model.BackAnimationType
+import com.necoarc.ityou.data.model.ThemeMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +17,8 @@ import java.io.FileOutputStream
 data class UserSettings(
     val dynamicColorEnabled: Boolean = true,
     val highQualityImage: Boolean = true,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val articleFontScale: Float = 1.0f,
     val backAnimation: BackAnimationType = BackAnimationType.SPRING_SLIDE,
     /** 是否强制使用系统默认字体，若为 false 则优先使用自定义字体或工程内置默认字体（馬路口圓體） */
     val useSystemFont: Boolean = false,
@@ -41,6 +44,14 @@ class SettingsRepository private constructor(private val context: Context) {
             BackAnimationType.SPRING_SLIDE
         }
 
+        val themeName = prefs.getString(KEY_THEME_MODE, ThemeMode.SYSTEM.name)
+        val themeMode = try {
+            ThemeMode.valueOf(themeName ?: ThemeMode.SYSTEM.name)
+        } catch (_: Exception) {
+            ThemeMode.SYSTEM
+        }
+        val fontScale = prefs.getFloat(KEY_ARTICLE_FONT_SCALE, 1.0f).coerceIn(MIN_FONT_SCALE, MAX_FONT_SCALE)
+
         val fontPath = prefs.getString(KEY_CUSTOM_FONT_PATH, null)
         val fontName = prefs.getString(KEY_CUSTOM_FONT_NAME, null)
         val fontFile = fontPath?.let { File(it) }
@@ -50,6 +61,8 @@ class SettingsRepository private constructor(private val context: Context) {
         return UserSettings(
             dynamicColorEnabled = prefs.getBoolean(KEY_DYNAMIC_COLOR, true),
             highQualityImage = prefs.getBoolean(KEY_HIGH_QUALITY_IMG, true),
+            themeMode = themeMode,
+            articleFontScale = fontScale,
             backAnimation = backAnim,
             useSystemFont = prefs.getBoolean(KEY_USE_SYSTEM_FONT, false),
             customFontName = if (validFontPath != null) fontName else null,
@@ -66,6 +79,17 @@ class SettingsRepository private constructor(private val context: Context) {
     fun setHighQualityImage(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_HIGH_QUALITY_IMG, enabled).apply()
         _settings.value = _settings.value.copy(highQualityImage = enabled)
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        prefs.edit().putString(KEY_THEME_MODE, mode.name).apply()
+        _settings.value = _settings.value.copy(themeMode = mode)
+    }
+
+    fun setArticleFontScale(scale: Float) {
+        val clamped = scale.coerceIn(MIN_FONT_SCALE, MAX_FONT_SCALE)
+        prefs.edit().putFloat(KEY_ARTICLE_FONT_SCALE, clamped).apply()
+        _settings.value = _settings.value.copy(articleFontScale = clamped)
     }
 
     fun setBackAnimation(type: BackAnimationType) {
@@ -138,8 +162,13 @@ class SettingsRepository private constructor(private val context: Context) {
     }
 
     companion object {
+        const val MIN_FONT_SCALE = 0.85f
+        const val MAX_FONT_SCALE = 1.40f
+
         private const val KEY_DYNAMIC_COLOR = "key_dynamic_color"
         private const val KEY_HIGH_QUALITY_IMG = "key_high_quality_img"
+        private const val KEY_THEME_MODE = "key_theme_mode"
+        private const val KEY_ARTICLE_FONT_SCALE = "key_article_font_scale"
         private const val KEY_BACK_ANIMATION = "key_back_animation"
         private const val KEY_USE_SYSTEM_FONT = "key_use_system_font"
         private const val KEY_CUSTOM_FONT_PATH = "key_custom_font_path"

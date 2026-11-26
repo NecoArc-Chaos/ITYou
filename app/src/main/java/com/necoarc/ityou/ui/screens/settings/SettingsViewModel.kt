@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.necoarc.ityou.data.model.BackAnimationType
+import com.necoarc.ityou.data.model.ThemeMode
 import com.necoarc.ityou.data.repository.SettingsRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +18,8 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val dynamicColorEnabled: Boolean = true,
     val highQualityImage: Boolean = true,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val articleFontScale: Float = 1.0f,
     val backAnimation: BackAnimationType = BackAnimationType.SPRING_SLIDE,
     val useSystemFont: Boolean = false,
     val customFontName: String? = null,
@@ -29,6 +32,8 @@ data class SettingsUiState(
 sealed interface SettingsUiIntent {
     data class SetDynamicColor(val enabled: Boolean) : SettingsUiIntent
     data class SetHighQualityImage(val enabled: Boolean) : SettingsUiIntent
+    data class SetThemeMode(val mode: ThemeMode) : SettingsUiIntent
+    data class SetArticleFontScale(val scale: Float) : SettingsUiIntent
     data class SetBackAnimation(val animation: BackAnimationType) : SettingsUiIntent
     data class SetUseSystemFont(val enabled: Boolean) : SettingsUiIntent
     data class InstallCustomFont(val uri: Uri) : SettingsUiIntent
@@ -62,6 +67,8 @@ class SettingsViewModel(
                     current.copy(
                         dynamicColorEnabled = settings.dynamicColorEnabled,
                         highQualityImage = settings.highQualityImage,
+                        themeMode = settings.themeMode,
+                        articleFontScale = settings.articleFontScale,
                         backAnimation = settings.backAnimation,
                         useSystemFont = settings.useSystemFont,
                         customFontName = settings.customFontName,
@@ -80,6 +87,12 @@ class SettingsViewModel(
             }
             is SettingsUiIntent.SetHighQualityImage -> {
                 repository.setHighQualityImage(intent.enabled)
+            }
+            is SettingsUiIntent.SetThemeMode -> {
+                repository.setThemeMode(intent.mode)
+            }
+            is SettingsUiIntent.SetArticleFontScale -> {
+                repository.setArticleFontScale(intent.scale)
             }
             is SettingsUiIntent.SetBackAnimation -> {
                 repository.setBackAnimation(intent.animation)

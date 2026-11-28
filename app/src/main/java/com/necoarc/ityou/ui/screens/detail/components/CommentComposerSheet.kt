@@ -68,6 +68,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.necoarc.ityou.data.model.ArticleComment
+import com.necoarc.ityou.data.parser.RichNotice
 import com.necoarc.ityou.ui.components.CommentEmojiMap
 import com.necoarc.ityou.ui.screens.detail.CommentImagePayload
 import com.necoarc.ityou.ui.theme.ShapeCache
@@ -86,7 +87,7 @@ fun CommentComposerSheet(
     replyTarget: ArticleComment?,
     isSubmitting: Boolean,
     submittingStatus: String?,
-    errorMessage: String? = null,
+    notice: RichNotice? = null,
     onClearError: () -> Unit = {},
     onDismissRequest: () -> Unit,
     onSubmit: (text: String, images: List<CommentImagePayload>) -> Unit
@@ -172,36 +173,42 @@ fun CommentComposerSheet(
                 }
             }
 
-            // 抽屉内部错误 / 等级限制提示（保证用户第一时间直接看到，不被 BottomSheet 遮挡）
+            // 抽屉内部错误 / 等级限制提示（自动清洗 HTML 并支持超链接直接点击）
             AnimatedVisibility(
-                visible = !errorMessage.isNullOrBlank(),
+                visible = notice != null && notice.text.isNotBlank(),
                 enter = expandVertically(animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()) +
                     fadeIn(animationSpec = MaterialTheme.motionScheme.fastEffectsSpec()),
                 exit = shrinkVertically(animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()) +
                     fadeOut(animationSpec = MaterialTheme.motionScheme.fastEffectsSpec())
             ) {
-                Surface(
-                    shape = ShapeCache.smooth16,
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                if (notice != null) {
+                    val linkColor = MaterialTheme.colorScheme.error
+                    val annotated = remember(notice, linkColor) {
+                        buildLinkedText(notice.text, notice.links, linkColor)
+                    }
+                    Surface(
+                        shape = ShapeCache.smooth16,
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.ErrorOutline,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            text = errorMessage.orEmpty(),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.ErrorOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = annotated,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
             }
@@ -211,7 +218,7 @@ fun CommentComposerSheet(
                 value = text,
                 onValueChange = {
                     text = it
-                    if (errorMessage != null) onClearError()
+                    if (notice != null) onClearError()
                 },
                 enabled = !isSubmitting,
                 placeholder = { Text("友善发言，理性讨论…") },

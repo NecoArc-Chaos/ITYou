@@ -269,15 +269,35 @@ fun SettingsScreen(
                                         )
                                     }
                                 }
+                                if (authState.isLoggedIn && authState.exp != null) {
+                                    Surface(
+                                        shape = ShapeCache.smoothPill,
+                                        color = MaterialTheme.colorScheme.secondaryContainer
+                                    ) {
+                                        Text(
+                                            text = "经验 ${authState.exp}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = if (authState.isLoggedIn) {
                                     buildString {
                                         if (authState.userId.isNotBlank()) {
-                                            append("ID: ${authState.userId} · ")
+                                            append("ID: ${authState.userId}")
                                         }
-                                        append("会话已通过 Keystore 加密托管")
+                                        if (!authState.expHint.isNullOrBlank()) {
+                                            if (isNotEmpty()) append(" · ")
+                                            append(authState.expHint)
+                                        }
+                                        if (isEmpty()) {
+                                            append("会话已通过 Keystore 加密托管")
+                                        }
                                     }
                                 } else {
                                     "登录后可发表评论、回复楼中楼、传图与赞/踩互动"

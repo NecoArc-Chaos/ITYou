@@ -163,6 +163,14 @@ fun DetailScreen(
         }
     }
 
+    // 把评论接口返回的经验值差额提示同步给 AuthRepository，供设置页账号卡片展示
+    val cannotCommentTipText = uiState.cannotCommentTip?.text
+    LaunchedEffect(cannotCommentTipText) {
+        if (!cannotCommentTipText.isNullOrBlank()) {
+            authRepository.updateExpHintFromTip(cannotCommentTipText)
+        }
+    }
+
     val topAppBarScrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val toolbarScrollBehavior = FloatingToolbarDefaults.exitAlwaysScrollBehavior(
         exitDirection = FloatingToolbarExitDirection.Bottom
@@ -416,13 +424,13 @@ fun DetailScreen(
             }
         }
 
-        // 评论编辑器底部抽屉（支持图文混排 + 表情选择 + 内嵌错误展示）
+        // 评论编辑器底部抽屉（支持图文混排 + 表情选择 + 内嵌可点击错误提示）
         if (uiState.isComposerOpen) {
             CommentComposerSheet(
                 replyTarget = uiState.replyTarget,
                 isSubmitting = uiState.isSubmittingComment,
                 submittingStatus = uiState.submittingStatus,
-                errorMessage = uiState.composerError,
+                notice = uiState.composerNotice,
                 onClearError = viewModel::clearComposerError,
                 onDismissRequest = viewModel::closeComposer,
                 onSubmit = { text, images ->

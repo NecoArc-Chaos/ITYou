@@ -86,15 +86,27 @@ class AuthCookieAndUserInfoTest {
         assertEquals("https://avatar.ithome.com/42.jpg", standard.avatarUrl)
         assertEquals(8, standard.level)
 
-        // 兼容 PascalCase 服务端返回字段（UserNick / UserAvatarHeadImg / UserID / Level）
+        // 兼容 PascalCase 服务端返回字段（UserNick / UserAvatarHeadImg / UserID / Level / Exp）
         val pascal = AuthRepository.parseUserInfoJson(
-            """{"success":true,"data":{"UserID":1024,"UserNick":"尾巴","UserAvatarHeadImg":"https://avatar.ithome.com/1024.jpg","Level":4}}"""
+            """{"success":true,"data":{"UserID":1024,"UserNick":"尾巴","UserAvatarHeadImg":"https://avatar.ithome.com/1024.jpg","Level":4,"Exp":586}}"""
         )
         assertNotNull(pascal)
         assertEquals("1024", pascal!!.userId)
         assertEquals("尾巴", pascal.userNick)
         assertEquals("https://avatar.ithome.com/1024.jpg", pascal.avatarUrl)
         assertEquals(4, pascal.level)
+        assertEquals(586, pascal.exp)
+
+        // 合并主备接口字段与提取经验提示
+        val merged = AuthRepository.mergeAuthStates(
+            primary = AuthRepository.parseUserInfoJson("""{"success":true,"data":{"userId":"1024","userNick":"尾巴"}}"""),
+            secondary = AuthRepository.parseUserInfoJson("""{"Success":1,"Result":{"UserID":1024,"Level":4,"Exp":586}}"""),
+            existingHint = AuthRepository.extractExpHint("等级达到【5级】即可发表评论哦，您还需414经验值")
+        )
+        assertNotNull(merged)
+        assertEquals(4, merged!!.level)
+        assertEquals(586, merged.exp)
+        assertEquals("距 5级 还需 414 经验值", merged.expHint)
 
         val failure = AuthRepository.parseUserInfoJson("""{"success":false,"data":null}""")
         assertNull(failure)

@@ -4,9 +4,22 @@ import androidx.compose.runtime.Immutable
 import com.necoarc.ityou.data.model.ArticleComment
 import com.necoarc.ityou.data.model.CommentImage
 import com.necoarc.ityou.data.model.CommentSubmitResult
+import com.necoarc.ityou.data.model.InlineLink
 import com.necoarc.ityou.data.model.UploadedCommentImage
 import org.json.JSONArray
 import org.json.JSONObject
+import org.jsoup.Jsoup
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
+
+/**
+ * 含可点击超链接的纯文本通知（用于把服务端 HTML 提示转为干净原生可点击富文本）。
+ */
+@Immutable
+data class RichNotice(
+    val text: String,
+    val links: List<InlineLink> = emptyList()
+)
 
 /**
  * 评论解析结果：全部评论 + 本次请求使用的 `sn` 令牌。
@@ -16,7 +29,7 @@ data class CommentPageResult(
     val comments: List<ArticleComment> = emptyList(),
     val sn: String = "",
     val canComment: Boolean = true,
-    val cannotCommentTip: String? = null
+    val cannotCommentTip: RichNotice? = null
 )
 
 /**
@@ -71,9 +84,11 @@ object CommentParser {
             }
 
             val canComment = content.optBoolean("canComment", true)
-            val cannotCommentTip = content.optString("cannotCommentTip")
+            val rawTip = content.optString("cannotCommentTip")
                 .trim()
                 .takeIf { it.isNotEmpty() && it != "null" }
+            val cannotCommentTip = rawTip?.let { parseRichNoticeHtml(it) }
+                ?.takeIf { it.text.isNotBlank() }
 
             CommentPageResult(
                 comments = comments,
@@ -108,14 +123,58 @@ object CommentParser {
     }
 
     /**
+     * 解析服务端返回的 HTML 提示文本（如 `cannotCommentTip`），
+     * 剥离原始 `<a ...>` 标签并将双层 App 唤醒链接解包为直接可点击的 HTTPS 地址。
+     */
+    fun parseRichNoticeHtml(rawHtml: String): RichNotice {
+        val trimmed = rawHtml.trim()
+        if (trimmed.isEmpty()) return RichNotice("")
+        if (!trimmed.contains('<')) return RichNotice(trimmed)
+
+        return runCatching {
+            val doc = Jsoup.parseBodyFragment(trimmed)
+            val links = doc.select("a[href]").mapNotNull { a ->
+                val label = a.text().trim()
+                val href = unwrapAppLink(a.attr("href").trim())
+                if (label.isNotEmpty() && href.startsWith("http")) {
+                    InlineLink(text = label, url = href)
+                } else {
+                    null
+                }
+            }
+            val cleanText = doc.body().text().replace("\\s+".toRegex(), " ").trim()
+            RichNotice(text = cleanText, links = links)
+        }.getOrElse {
+            RichNotice(trimmed.replace("<[^>]+>".toRegex(), "").trim())
+        }
+    }
+
+    /**
+     * 解包 `open.html?url=ithome://openurl?url=...` 等 App 跳转包裹链接，提取真实 HTTPS 地址。
+     */
+    internal fun unwrapAppLink(rawUrl: String): String {
+        var current = rawUrl.trim()
+        for (depth in 0 until 3) {
+            val queryPart = current.substringAfter("url=", missingDelimiterValue = "")
+            if (queryPart.isEmpty()) break
+            val decoded = runCatching {
+                URLDecoder.decode(queryPart.substringBefore('&'), StandardCharsets.UTF_8.toString())
+            }.getOrNull() ?: break
+            if (decoded == current) break
+            current = decoded
+        }
+        return current
+    }
+
+    /**
      * 解析发评响应（`/apiv2/comment/submit`）。
      */
     fun parseSubmitResponse(jsonString: String): Result<CommentSubmitResult> {
         return try {
             val root = JSONObject(jsonString)
             if (!root.optBoolean("success")) {
-                val msg = root.optString("message").ifBlank { "发布失败，请稍后重试" }
-                return Result.failure(IllegalStateException(msg))
+                val rawMsg = root.optString("message").ifBlank { "发布失败，请稍后重试" }
+                return Result.failure(IllegalStateException(rawMsg))
             }
             val contentNode = root.optJSONObject("content")
             val comment = contentNode?.let { parseCommentNode(it) }

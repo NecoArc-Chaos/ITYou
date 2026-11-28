@@ -34,10 +34,21 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v2.3.3",
+        releaseDate = "2026-11-28",
+        summary = "清洗评论提示框中的原始 HTML 并支持超链接直达，补全移动站账号接口融合以展示等级与经验信息，并接入网页阅读统计上报。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FIX, "清洗评论框内嵌提示 HTML：剥离原始 <a> 标签简化长度，解包 App 跳转链接支持直接点击《我的等级》"),
+            ChangeItem(ChangeType.FEATURE, "账号卡片升级：融合 m.ithome.com/api/user/userinfoget 接口补全 Lv 等级、经验值及距下一可评论等级差额提示"),
+            ChangeItem(ChangeType.IMPROVEMENT, "文章阅读上报：详情加载时静默上报 hitcount 阅读统计")
+        )
+    ),
+    ReleaseNote(
         version = "v2.3.2",
         releaseDate = "2026-11-28",
         summary = "优化评论交互与账号显示：发评错误及等级不足提示内嵌至评论输入框防止遮挡，修复评论「回复」按钮折行挤压，并在设置页展示账号 Lv 等级。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FIX, "修复发评提示被底部抽屉遮挡的问题：将提交失败与等级不足提示直接内嵌至 CommentComposerSheet 顶部，打开评论框即预先提醒"),
             ChangeItem(ChangeType.FEATURE, "账号等级展示：AuthRepository 补全 Level/UserNick/UserAvatarHeadImg 解析，设置页账号卡片直观展示 Lv.X 等级胶囊与 ID"),

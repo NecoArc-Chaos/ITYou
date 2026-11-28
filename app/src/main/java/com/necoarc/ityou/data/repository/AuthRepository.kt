@@ -25,6 +25,8 @@ data class AuthState(
     val avatarUrl: String? = null,
     val userId: String = "",
     val level: Int? = null,
+    val exp: Int? = null,
+    val expHint: String? = null,
     val isChecking: Boolean = false
 )
 
@@ -59,13 +61,17 @@ class AuthRepository private constructor(context: Context) {
         val cachedAvatar = prefs.getString(KEY_AVATAR_URL, null)
         val cachedId = prefs.getString(KEY_USER_ID, "").orEmpty()
         val cachedLevel = prefs.getInt(KEY_USER_LEVEL, -1).takeIf { it >= 0 }
+        val cachedExp = prefs.getInt(KEY_USER_EXP, -1).takeIf { it >= 0 }
+        val cachedExpHint = prefs.getString(KEY_EXP_HINT, null)
         return if (hasCookies) {
             AuthState(
                 isLoggedIn = true,
                 userNick = cachedNick.ifBlank { "IT之家用户" },
                 avatarUrl = cachedAvatar,
                 userId = cachedId,
-                level = cachedLevel
+                level = cachedLevel,
+                exp = cachedExp,
+                expHint = cachedExpHint
             )
         } else {
             AuthState()
@@ -166,6 +172,20 @@ class AuthRepository private constructor(context: Context) {
     }
 
     /**
+     * 从评论禁言/等级限制文案中提取距离下一可评论门槛的经验值提示，供账号卡片展示。
+     */
+    fun updateExpHintFromTip(tipText: String) {
+        if (!_authState.value.isLoggedIn) return
+        val hint = extractExpHint(tipText) ?: return
+        val current = _authState.value
+        if (current.expHint != hint) {
+            val updated = current.copy(expHint = hint)
+            saveProfile(updated)
+            _authState.value = updated
+        }
+    }
+
+    /**
      * 退出登录：通知服务端注销并清空本地加密 Cookie 与 WebView Cookie。
      */
     suspend fun logout() = withContext(Dispatchers.IO) {
@@ -200,29 +220,62 @@ class AuthRepository private constructor(context: Context) {
             .apply {
                 if (state.level != null) putInt(KEY_USER_LEVEL, state.level)
                 else remove(KEY_USER_LEVEL)
+                if (state.exp != null) putInt(KEY_USER_EXP, state.exp)
+                else remove(KEY_USER_EXP)
+                if (state.expHint != null) putString(KEY_EXP_HINT, state.expHint)
+                else remove(KEY_EXP_HINT)
             }
             .apply()
     }
 
     private fun fetchUserInfoFromServer(): Result<AuthState> {
-        val request = Request.Builder()
+        val napiRequest = Request.Builder()
             .url(USER_INFO_URL)
             .header("User-Agent", NetworkClient.USER_AGENT)
             .header("Origin", "https://www.ithome.com")
             .header("Referer", "https://www.ithome.com/")
             .build()
 
+        var primaryState: AuthState? = null
+        var unauthorized = false
+        var lastError: IOException? = null
+
+        NetworkClient.client.newCall(napiRequest).execute().use { response ->
+            when {
+                response.code == 401 || response.code == 403 -> unauthorized = true
+                !response.isSuccessful -> lastError = IOException("HTTP ${response.code}")
+                else -> {
+                    val body = response.body?.string().orEmpty()
+                    primaryState = parseUserInfoJson(body)
+                }
+            }
+        }
+
+        // 同时尝试从移动站 userinfoget 补全 Level / Exp / UserNick（user-menu.js 使用该接口获取 Lv.X）
+        val wapState = runCatching { fetchMobileUserInfo() }.getOrNull()
+
+        val merged = mergeAuthStates(primaryState, wapState, existingHint = _authState.value.expHint)
+        if (merged != null) {
+            return Result.success(merged)
+        }
+        return if (unauthorized) {
+            Result.failure(UnauthorizedException())
+        } else {
+            Result.failure(lastError ?: UnauthorizedException("登录状态尚未生效"))
+        }
+    }
+
+    private fun fetchMobileUserInfo(): AuthState? {
+        val request = Request.Builder()
+            .url(WAP_USER_INFO_URL)
+            .header("User-Agent", NetworkClient.USER_AGENT)
+            .header("Origin", "https://m.ithome.com")
+            .header("Referer", "https://m.ithome.com/")
+            .build()
         return NetworkClient.client.newCall(request).execute().use { response ->
-            if (response.code == 401 || response.code == 403) {
-                return@use Result.failure(UnauthorizedException())
-            }
-            if (!response.isSuccessful) {
-                return@use Result.failure(IOException("HTTP ${response.code}"))
-            }
+            if (!response.isSuccessful) return@use null
             val body = response.body?.string().orEmpty()
-            val parsed = parseUserInfoJson(body)
-                ?: return@use Result.failure(UnauthorizedException("登录状态尚未生效"))
-            Result.success(parsed)
+            parseUserInfoJson(body)
         }
     }
 
@@ -230,6 +283,7 @@ class AuthRepository private constructor(context: Context) {
 
     companion object {
         private const val USER_INFO_URL = "https://napi.ithome.com/api/user/getuserinfo"
+        private const val WAP_USER_INFO_URL = "https://m.ithome.com/api/user/userinfoget"
         private const val LOGOUT_URL = "https://cmt.ithome.com/api/webcomment/logout"
 
         private const val PREFS_NAME = "ityou_auth_profile"
@@ -237,6 +291,43 @@ class AuthRepository private constructor(context: Context) {
         private const val KEY_AVATAR_URL = "avatar_url"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_USER_LEVEL = "user_level"
+        private const val KEY_USER_EXP = "user_exp"
+        private const val KEY_EXP_HINT = "user_exp_hint"
+
+        private val LEVEL_TARGET_REGEX = Regex("""【(\d+级)】""")
+        private val REMAIN_EXP_REGEX = Regex("""还需\s*(\d+)\s*经验值""")
+
+        internal fun extractExpHint(tipText: String): String? {
+            val remain = REMAIN_EXP_REGEX.find(tipText)?.groupValues?.getOrNull(1) ?: return null
+            val target = LEVEL_TARGET_REGEX.find(tipText)?.groupValues?.getOrNull(1)
+            return if (target != null) {
+                "距 $target 还需 $remain 经验值"
+            } else {
+                "还需 $remain 经验值"
+            }
+        }
+
+        internal fun mergeAuthStates(
+            primary: AuthState?,
+            secondary: AuthState?,
+            existingHint: String? = null
+        ): AuthState? {
+            if (primary == null && secondary == null) return null
+            val base = primary ?: secondary!!
+            val aux = if (primary != null) secondary else null
+            val resolvedNick = base.userNick.takeIf { it.isNotBlank() && it != "IT之家用户" }
+                ?: aux?.userNick?.takeIf { it.isNotBlank() && it != "IT之家用户" }
+                ?: "IT之家用户"
+            return AuthState(
+                isLoggedIn = true,
+                userNick = resolvedNick,
+                avatarUrl = base.avatarUrl ?: aux?.avatarUrl,
+                userId = base.userId.ifBlank { aux?.userId.orEmpty() },
+                level = base.level ?: aux?.level,
+                exp = base.exp ?: aux?.exp,
+                expHint = existingHint
+            )
+        }
 
         /**
          * 纯函数：解析 `getuserinfo` 响应 JSON（兼容 PascalCase 与 camelCase 多种字段，便于单元测试）。
@@ -295,6 +386,16 @@ class AuthRepository private constructor(context: Context) {
                         }
                     }
 
+                val exp = listOf("Exp", "exp", "UserExp", "userExp", "Score", "score")
+                    .firstNotNullOfOrNull { key ->
+                        if (data.has(key) && !data.isNull(key)) {
+                            data.optInt(key, -1).takeIf { it >= 0 }
+                                ?: data.optString(key).trim().toIntOrNull()?.takeIf { it >= 0 }
+                        } else {
+                            null
+                        }
+                    }
+
                 // 服务端明确成功（200 OK 且 success == true）但未返回 nick 时保留兜底昵称
                 if (nick.isEmpty() && userId.isEmpty() && !root.optBoolean("success", false)) {
                     return null
@@ -305,7 +406,8 @@ class AuthRepository private constructor(context: Context) {
                     userNick = nick.ifBlank { "IT之家用户" },
                     avatarUrl = normalizedAvatar,
                     userId = userId,
-                    level = level
+                    level = level,
+                    exp = exp
                 )
             }.getOrNull()
         }

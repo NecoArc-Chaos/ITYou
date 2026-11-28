@@ -176,12 +176,31 @@ open class ArticleRepository(
                 // 2. 写入短期内存缓存
                 detailCache.put(articleId, finalDetail)
 
+                // 3. 静默向网页统计接口上报文章阅读（与手机网页端保持一致）
+                reportArticleRead(articleId, url)
+
                 Result.success(finalDetail)
             }
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    /**
+     * 静默上报文章阅读计数（`dyn.ithome.com/api/hitcount/{newsId}/wap`），
+     * 仅作为阅读统计，失败不影响正文呈现。
+     */
+    private fun reportArticleRead(articleId: String, articleUrl: String) {
+        val numericId = resolveNumericNewsId(articleId, articleUrl) ?: return
+        runCatching {
+            val request = Request.Builder()
+                .url("https://dyn.ithome.com/api/hitcount/$numericId/wap")
+                .header("User-Agent", NetworkClient.USER_AGENT)
+                .header("Referer", articleUrl)
+                .build()
+            client.newCall(request).execute().close()
         }
     }
 

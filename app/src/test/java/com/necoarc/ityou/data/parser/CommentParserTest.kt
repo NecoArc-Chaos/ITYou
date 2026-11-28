@@ -356,7 +356,7 @@ class CommentParserTest {
                 "success": true,
                 "content": {
                     "canComment": false,
-                    "cannotCommentTip": "等级达到【5级】即可发表评论哦，您还需414经验值",
+                    "cannotCommentTip": "等级达到【5级】即可发表评论哦，您还需414经验值，每天坚持登录、阅读新闻即可提升等级，详见《<a href=\"https://m.ithome.com/html/app/open.html?url=ithome%3A%2F%2Fopenurl%3Furl%3Dhttps%253A%252F%252Fimg.ithome.com%252Fapp%252Ftips%252Ftomylevel.html\" target=\"_blank\">我的等级</a>》。",
                     "hotComments": [],
                     "comments": []
                 }
@@ -365,6 +365,13 @@ class CommentParserTest {
 
         val page = CommentParser.parseComments(sampleJson)
         assertEquals(false, page.canComment)
-        assertEquals("等级达到【5级】即可发表评论哦，您还需414经验值", page.cannotCommentTip)
+        val notice = page.cannotCommentTip!!
+        assertEquals(
+            "等级达到【5级】即可发表评论哦，您还需414经验值，每天坚持登录、阅读新闻即可提升等级，详见《我的等级》。",
+            notice.text
+        )
+        assertEquals(1, notice.links.size)
+        assertEquals("我的等级", notice.links[0].text)
+        assertEquals("https://img.ithome.com/app/tips/tomylevel.html", notice.links[0].url)
     }
 }

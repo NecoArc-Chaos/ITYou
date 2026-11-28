@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.necoarc.ityou.data.model.ArticleComment
 import com.necoarc.ityou.data.model.ArticleDetail
 import com.necoarc.ityou.data.model.UploadedCommentImage
+import com.necoarc.ityou.data.parser.CommentParser
+import com.necoarc.ityou.data.parser.RichNotice
 import com.necoarc.ityou.data.repository.ArticleRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,11 +46,11 @@ data class DetailUiState(
     val isSubmittingComment: Boolean = false,
     /** 提交阶段状态文案（如「正在上传第 1/2 张图片…」） */
     val submittingStatus: String? = null,
-    /** 评论编辑弹窗内部的错误或等级限制提示（避免被底部抽屉遮挡） */
-    val composerError: String? = null,
+    /** 评论编辑弹窗内部的错误或等级限制提示（支持可点击富文本链接，避免被底部抽屉遮挡） */
+    val composerNotice: RichNotice? = null,
     /** 服务端返回的当前账号评论权限及限制提示 */
     val canComment: Boolean = true,
-    val cannotCommentTip: String? = null,
+    val cannotCommentTip: RichNotice? = null,
     /** 一次性提示消息（提交成功、投票报错等） */
     val actionMessage: String? = null
 ) {
@@ -132,7 +134,7 @@ class DetailViewModel(
     }
 
     fun clearComposerError() {
-        _uiState.update { it.copy(composerError = null) }
+        _uiState.update { it.copy(composerNotice = null) }
     }
 
     fun openComposer(replyTarget: ArticleComment? = null) {
@@ -140,7 +142,7 @@ class DetailViewModel(
             current.copy(
                 isComposerOpen = true,
                 replyTarget = replyTarget,
-                composerError = if (!current.canComment) current.cannotCommentTip else null
+                composerNotice = if (!current.canComment) current.cannotCommentTip else null
             )
         }
     }
@@ -151,7 +153,7 @@ class DetailViewModel(
             it.copy(
                 isComposerOpen = false,
                 replyTarget = null,
-                composerError = null
+                composerNotice = null
             )
         }
     }
@@ -174,7 +176,9 @@ class DetailViewModel(
             articleUrl = _uiState.value.detail?.originalUrl?.ifBlank { request.url } ?: request.url
         )
         if (newsId == null) {
-            _uiState.update { it.copy(composerError = "暂不支持对此页面发表评论（无法解析文章 ID）") }
+            _uiState.update {
+                it.copy(composerNotice = RichNotice("暂不支持对此页面发表评论（无法解析文章 ID）"))
+            }
             return
         }
 
@@ -182,7 +186,7 @@ class DetailViewModel(
             _uiState.update {
                 it.copy(
                     isSubmittingComment = true,
-                    composerError = null,
+                    composerNotice = null,
                     submittingStatus = if (images.isNotEmpty()) "准备上传图片…" else "正在发布评论…"
                 )
             }
@@ -203,7 +207,9 @@ class DetailViewModel(
                         it.copy(
                             isSubmittingComment = false,
                             submittingStatus = null,
-                            composerError = err.localizedMessage ?: "第 ${index + 1} 张图片上传失败"
+                            composerNotice = CommentParser.parseRichNoticeHtml(
+                                err.localizedMessage ?: "第 ${index + 1} 张图片上传失败"
+                            )
                         )
                     }
                     return@launch
@@ -238,7 +244,7 @@ class DetailViewModel(
                             comments = updatedComments,
                             isSubmittingComment = false,
                             submittingStatus = null,
-                            composerError = null,
+                            composerNotice = null,
                             isComposerOpen = false,
                             replyTarget = null,
                             actionMessage = res.message
@@ -249,7 +255,7 @@ class DetailViewModel(
                         it.copy(
                             isSubmittingComment = false,
                             submittingStatus = null,
-                            composerError = null,
+                            composerNotice = null,
                             isComposerOpen = false,
                             replyTarget = null,
                             actionMessage = res.message
@@ -263,7 +269,9 @@ class DetailViewModel(
                     it.copy(
                         isSubmittingComment = false,
                         submittingStatus = null,
-                        composerError = err.localizedMessage ?: "发布失败，请稍后重试"
+                        composerNotice = CommentParser.parseRichNoticeHtml(
+                            err.localizedMessage ?: "发布失败，请稍后重试"
+                        )
                     )
                 }
             }

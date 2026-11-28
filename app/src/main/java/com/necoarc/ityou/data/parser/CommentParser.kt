@@ -14,7 +14,9 @@ import org.json.JSONObject
 @Immutable
 data class CommentPageResult(
     val comments: List<ArticleComment> = emptyList(),
-    val sn: String = ""
+    val sn: String = "",
+    val canComment: Boolean = true,
+    val cannotCommentTip: String? = null
 )
 
 /**
@@ -68,7 +70,16 @@ object CommentParser {
                 }
             }
 
-            CommentPageResult(comments = comments)
+            val canComment = content.optBoolean("canComment", true)
+            val cannotCommentTip = content.optString("cannotCommentTip")
+                .trim()
+                .takeIf { it.isNotEmpty() && it != "null" }
+
+            CommentPageResult(
+                comments = comments,
+                canComment = canComment,
+                cannotCommentTip = cannotCommentTip
+            )
         } catch (_: Exception) {
             CommentPageResult()
         }

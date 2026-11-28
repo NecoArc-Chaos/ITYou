@@ -36,6 +36,7 @@ import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.EmojiEmotions
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -85,6 +86,8 @@ fun CommentComposerSheet(
     replyTarget: ArticleComment?,
     isSubmitting: Boolean,
     submittingStatus: String?,
+    errorMessage: String? = null,
+    onClearError: () -> Unit = {},
     onDismissRequest: () -> Unit,
     onSubmit: (text: String, images: List<CommentImagePayload>) -> Unit
 ) {
@@ -169,10 +172,47 @@ fun CommentComposerSheet(
                 }
             }
 
+            // 抽屉内部错误 / 等级限制提示（保证用户第一时间直接看到，不被 BottomSheet 遮挡）
+            AnimatedVisibility(
+                visible = !errorMessage.isNullOrBlank(),
+                enter = expandVertically(animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()) +
+                    fadeIn(animationSpec = MaterialTheme.motionScheme.fastEffectsSpec()),
+                exit = shrinkVertically(animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()) +
+                    fadeOut(animationSpec = MaterialTheme.motionScheme.fastEffectsSpec())
+            ) {
+                Surface(
+                    shape = ShapeCache.smooth16,
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ErrorOutline,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = errorMessage.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
             // 输入框（使用 M3E roundedShape）
             OutlinedTextField(
                 value = text,
-                onValueChange = { text = it },
+                onValueChange = {
+                    text = it
+                    if (errorMessage != null) onClearError()
+                },
                 enabled = !isSubmitting,
                 placeholder = { Text("友善发言，理性讨论…") },
                 shape = ShapeCache.smooth16,

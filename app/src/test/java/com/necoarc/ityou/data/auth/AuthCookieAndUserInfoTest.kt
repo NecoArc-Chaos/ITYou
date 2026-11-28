@@ -77,13 +77,24 @@ class AuthCookieAndUserInfoTest {
     @Test
     fun `AuthRepository_parseUserInfoJson 兼容多格式响应与失败校验`() {
         val standard = AuthRepository.parseUserInfoJson(
-            """{"success":true,"data":{"userId":"42","userNick":"软媒极客","userAvatar":"//avatar.ithome.com/42.jpg"}}"""
+            """{"success":true,"data":{"userId":"42","userNick":"软媒极客","userAvatar":"//avatar.ithome.com/42.jpg","level":8}}"""
         )
         assertNotNull(standard)
         assertTrue(standard!!.isLoggedIn)
         assertEquals("42", standard.userId)
         assertEquals("软媒极客", standard.userNick)
         assertEquals("https://avatar.ithome.com/42.jpg", standard.avatarUrl)
+        assertEquals(8, standard.level)
+
+        // 兼容 PascalCase 服务端返回字段（UserNick / UserAvatarHeadImg / UserID / Level）
+        val pascal = AuthRepository.parseUserInfoJson(
+            """{"success":true,"data":{"UserID":1024,"UserNick":"尾巴","UserAvatarHeadImg":"https://avatar.ithome.com/1024.jpg","Level":4}}"""
+        )
+        assertNotNull(pascal)
+        assertEquals("1024", pascal!!.userId)
+        assertEquals("尾巴", pascal.userNick)
+        assertEquals("https://avatar.ithome.com/1024.jpg", pascal.avatarUrl)
+        assertEquals(4, pascal.level)
 
         val failure = AuthRepository.parseUserInfoJson("""{"success":false,"data":null}""")
         assertNull(failure)

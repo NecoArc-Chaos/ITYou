@@ -44,7 +44,12 @@ data class DetailUiState(
     val isSubmittingComment: Boolean = false,
     /** 提交阶段状态文案（如「正在上传第 1/2 张图片…」） */
     val submittingStatus: String? = null,
-    /** 一次性提示消息（提交成功/失败、投票报错等） */
+    /** 评论编辑弹窗内部的错误或等级限制提示（避免被底部抽屉遮挡） */
+    val composerError: String? = null,
+    /** 服务端返回的当前账号评论权限及限制提示 */
+    val canComment: Boolean = true,
+    val cannotCommentTip: String? = null,
+    /** 一次性提示消息（提交成功、投票报错等） */
     val actionMessage: String? = null
 ) {
     val showSkeleton: Boolean get() = isLoading && detail == null
@@ -126,11 +131,16 @@ class DetailViewModel(
         _uiState.update { it.copy(actionMessage = null) }
     }
 
+    fun clearComposerError() {
+        _uiState.update { it.copy(composerError = null) }
+    }
+
     fun openComposer(replyTarget: ArticleComment? = null) {
-        _uiState.update {
-            it.copy(
+        _uiState.update { current ->
+            current.copy(
                 isComposerOpen = true,
-                replyTarget = replyTarget
+                replyTarget = replyTarget,
+                composerError = if (!current.canComment) current.cannotCommentTip else null
             )
         }
     }
@@ -140,7 +150,8 @@ class DetailViewModel(
         _uiState.update {
             it.copy(
                 isComposerOpen = false,
-                replyTarget = null
+                replyTarget = null,
+                composerError = null
             )
         }
     }
@@ -163,7 +174,7 @@ class DetailViewModel(
             articleUrl = _uiState.value.detail?.originalUrl?.ifBlank { request.url } ?: request.url
         )
         if (newsId == null) {
-            _uiState.update { it.copy(actionMessage = "暂不支持对此页面发表评论（无法解析文章 ID）") }
+            _uiState.update { it.copy(composerError = "暂不支持对此页面发表评论（无法解析文章 ID）") }
             return
         }
 
@@ -171,6 +182,7 @@ class DetailViewModel(
             _uiState.update {
                 it.copy(
                     isSubmittingComment = true,
+                    composerError = null,
                     submittingStatus = if (images.isNotEmpty()) "准备上传图片…" else "正在发布评论…"
                 )
             }
@@ -191,7 +203,7 @@ class DetailViewModel(
                         it.copy(
                             isSubmittingComment = false,
                             submittingStatus = null,
-                            actionMessage = err.localizedMessage ?: "第 ${index + 1} 张图片上传失败"
+                            composerError = err.localizedMessage ?: "第 ${index + 1} 张图片上传失败"
                         )
                     }
                     return@launch
@@ -226,6 +238,7 @@ class DetailViewModel(
                             comments = updatedComments,
                             isSubmittingComment = false,
                             submittingStatus = null,
+                            composerError = null,
                             isComposerOpen = false,
                             replyTarget = null,
                             actionMessage = res.message
@@ -236,6 +249,7 @@ class DetailViewModel(
                         it.copy(
                             isSubmittingComment = false,
                             submittingStatus = null,
+                            composerError = null,
                             isComposerOpen = false,
                             replyTarget = null,
                             actionMessage = res.message
@@ -249,7 +263,7 @@ class DetailViewModel(
                     it.copy(
                         isSubmittingComment = false,
                         submittingStatus = null,
-                        actionMessage = err.localizedMessage ?: "发布失败，请稍后重试"
+                        composerError = err.localizedMessage ?: "发布失败，请稍后重试"
                     )
                 }
             }
@@ -403,7 +417,9 @@ class DetailViewModel(
                     state.copy(
                         comments = page.comments,
                         isCommentsLoading = false,
-                        commentsError = null
+                        commentsError = null,
+                        canComment = page.canComment,
+                        cannotCommentTip = page.cannotCommentTip
                     )
                 }
             }.onFailure { error ->

@@ -315,26 +315,28 @@ fun CommentRow(
             // 元信息与互动胶囊（时间 / 赞 / 踩 / 回复）
             Spacer(modifier = Modifier.height(8.dp))
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                if (comment.location.isNotEmpty() && !compact) {
+                val metaText = remember(comment.location, comment.publishTime, compact) {
+                    listOfNotNull(
+                        comment.location.takeIf { !compact && it.isNotEmpty() },
+                        comment.publishTime.takeIf { it.isNotEmpty() }
+                    ).joinToString(" · ")
+                }
+                if (metaText.isNotEmpty()) {
                     Text(
-                        text = comment.location,
+                        text = metaText,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
-                if (comment.publishTime.isNotEmpty()) {
-                    Text(
-                        text = comment.publishTime,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-                Spacer(modifier = Modifier.weight(1f))
 
                 // 支持 / 赞
                 CommentActionPill(
@@ -408,7 +410,9 @@ private fun CommentActionPill(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                color = fgColor
+                color = fgColor,
+                maxLines = 1,
+                softWrap = false
             )
         }
     }

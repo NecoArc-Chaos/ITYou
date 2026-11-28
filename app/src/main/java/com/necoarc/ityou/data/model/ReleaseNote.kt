@@ -34,10 +34,21 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v2.3.2",
+        releaseDate = "2026-11-28",
+        summary = "优化评论交互与账号显示：发评错误及等级不足提示内嵌至评论输入框防止遮挡，修复评论「回复」按钮折行挤压，并在设置页展示账号 Lv 等级。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FIX, "修复发评提示被底部抽屉遮挡的问题：将提交失败与等级不足提示直接内嵌至 CommentComposerSheet 顶部，打开评论框即预先提醒"),
+            ChangeItem(ChangeType.FEATURE, "账号等级展示：AuthRepository 补全 Level/UserNick/UserAvatarHeadImg 解析，设置页账号卡片直观展示 Lv.X 等级胶囊与 ID"),
+            ChangeItem(ChangeType.FIX, "修复评论卡片「回复」胶囊在部分地区名较长时被挤压成两行竖排的布局问题")
+        )
+    ),
+    ReleaseNote(
         version = "v2.3.1",
         releaseDate = "2026-11-28",
         summary = "修复登录页 WebView 空白不显示的问题，精简详情页底部悬浮工具栏，移除多余的跳转评论按钮。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FIX, "修复登录页 WebView 白屏：补全 MATCH_PARENT 布局参数与混合内容权限，改为直连软媒官方登录页并拦截回调自动同步会话"),
             ChangeItem(ChangeType.IMPROVEMENT, "精简底部悬浮工具栏：移除冗余的跳转评论按钮，只保留收藏、发表评论、字号与分享四项核心操作")

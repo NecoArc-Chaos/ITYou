@@ -416,12 +416,14 @@ fun DetailScreen(
             }
         }
 
-        // 评论编辑器底部抽屉（支持图文混排 + 表情选择）
+        // 评论编辑器底部抽屉（支持图文混排 + 表情选择 + 内嵌错误展示）
         if (uiState.isComposerOpen) {
             CommentComposerSheet(
                 replyTarget = uiState.replyTarget,
                 isSubmitting = uiState.isSubmittingComment,
                 submittingStatus = uiState.submittingStatus,
+                errorMessage = uiState.composerError,
+                onClearError = viewModel::clearComposerError,
                 onDismissRequest = viewModel::closeComposer,
                 onSubmit = { text, images ->
                     viewModel.submitComment(

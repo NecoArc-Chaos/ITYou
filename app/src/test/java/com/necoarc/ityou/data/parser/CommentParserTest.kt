@@ -348,4 +348,23 @@ class CommentParserTest {
         assertTrue(voteErr.isFailure)
         assertEquals("请勿重复投票", voteErr.exceptionOrNull()?.message)
     }
+
+    @Test
+    fun parseComments_extractsCanCommentAndCannotCommentTip() {
+        val sampleJson = """
+            {
+                "success": true,
+                "content": {
+                    "canComment": false,
+                    "cannotCommentTip": "等级达到【5级】即可发表评论哦，您还需414经验值",
+                    "hotComments": [],
+                    "comments": []
+                }
+            }
+        """.trimIndent()
+
+        val page = CommentParser.parseComments(sampleJson)
+        assertEquals(false, page.canComment)
+        assertEquals("等级达到【5级】即可发表评论哦，您还需414经验值", page.cannotCommentTip)
+    }
 }

@@ -244,16 +244,41 @@ fun SettingsScreen(
                         }
 
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = if (authState.isLoggedIn) authState.userNick else "未登录 IT之家账号",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = if (authState.isLoggedIn) authState.userNick else "未登录 IT之家账号",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1
+                                )
+                                if (authState.isLoggedIn && authState.level != null) {
+                                    Surface(
+                                        shape = ShapeCache.smoothPill,
+                                        color = MaterialTheme.colorScheme.primaryContainer
+                                    ) {
+                                        Text(
+                                            text = "Lv.${authState.level}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = if (authState.isLoggedIn) {
-                                    "会话已通过 Android Keystore AES-GCM 加密托管"
+                                    buildString {
+                                        if (authState.userId.isNotBlank()) {
+                                            append("ID: ${authState.userId} · ")
+                                        }
+                                        append("会话已通过 Keystore 加密托管")
+                                    }
                                 } else {
                                     "登录后可发表评论、回复楼中楼、传图与赞/踩互动"
                                 },

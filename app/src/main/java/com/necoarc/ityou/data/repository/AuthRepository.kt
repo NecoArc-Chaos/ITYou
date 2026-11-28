@@ -24,6 +24,7 @@ data class AuthState(
     val userNick: String = "",
     val avatarUrl: String? = null,
     val userId: String = "",
+    val level: Int? = null,
     val isChecking: Boolean = false
 )
 
@@ -57,12 +58,14 @@ class AuthRepository private constructor(context: Context) {
         val cachedNick = prefs.getString(KEY_USER_NICK, "").orEmpty()
         val cachedAvatar = prefs.getString(KEY_AVATAR_URL, null)
         val cachedId = prefs.getString(KEY_USER_ID, "").orEmpty()
+        val cachedLevel = prefs.getInt(KEY_USER_LEVEL, -1).takeIf { it >= 0 }
         return if (hasCookies) {
             AuthState(
                 isLoggedIn = true,
                 userNick = cachedNick.ifBlank { "IT之家用户" },
                 avatarUrl = cachedAvatar,
-                userId = cachedId
+                userId = cachedId,
+                level = cachedLevel
             )
         } else {
             AuthState()
@@ -194,6 +197,10 @@ class AuthRepository private constructor(context: Context) {
             .putString(KEY_USER_NICK, state.userNick)
             .putString(KEY_AVATAR_URL, state.avatarUrl)
             .putString(KEY_USER_ID, state.userId)
+            .apply {
+                if (state.level != null) putInt(KEY_USER_LEVEL, state.level)
+                else remove(KEY_USER_LEVEL)
+            }
             .apply()
     }
 
@@ -229,9 +236,10 @@ class AuthRepository private constructor(context: Context) {
         private const val KEY_USER_NICK = "user_nick"
         private const val KEY_AVATAR_URL = "avatar_url"
         private const val KEY_USER_ID = "user_id"
+        private const val KEY_USER_LEVEL = "user_level"
 
         /**
-         * 纯函数：解析 `getuserinfo` 响应 JSON（兼容多种服务端包装格式，便于单元测试）。
+         * 纯函数：解析 `getuserinfo` 响应 JSON（兼容 PascalCase 与 camelCase 多种字段，便于单元测试）。
          */
         internal fun parseUserInfoJson(json: String): AuthState? {
             if (json.isBlank()) return null
@@ -246,19 +254,26 @@ class AuthRepository private constructor(context: Context) {
                     ?: root.optJSONObject("userInfo")
                     ?: root
 
-                val nick = data.optString("userNick")
+                val nick = data.optString("UserNick")
+                    .ifBlank { data.optString("userNick") }
                     .ifBlank { data.optString("nickName") }
                     .ifBlank { data.optString("nickname") }
                     .ifBlank { data.optString("userName") }
                     .ifBlank { data.optString("name") }
                     .trim()
 
-                val userId = data.optString("userId")
+                val userId = data.optString("UserID")
+                    .ifBlank { data.optString("userId") }
                     .ifBlank { data.optString("userid") }
                     .ifBlank { data.optString("id") }
-                    .ifBlank { data.optLong("uid", 0L).takeIf { it > 0L }?.toString().orEmpty() }
+                    .ifBlank {
+                        val numId = data.optLong("UserID", 0L).takeIf { it > 0L }
+                            ?: data.optLong("uid", 0L).takeIf { it > 0L }
+                        numId?.toString().orEmpty()
+                    }
 
-                val rawAvatar = data.optString("userAvatar")
+                val rawAvatar = data.optString("UserAvatarHeadImg")
+                    .ifBlank { data.optString("userAvatar") }
                     .ifBlank { data.optString("avatar") }
                     .ifBlank { data.optString("headImg") }
                     .ifBlank { data.optString("headimg") }
@@ -270,6 +285,16 @@ class AuthRepository private constructor(context: Context) {
                     else -> rawAvatar
                 }
 
+                val level = listOf("Level", "level", "UserLevel", "userLevel", "grade")
+                    .firstNotNullOfOrNull { key ->
+                        if (data.has(key) && !data.isNull(key)) {
+                            data.optInt(key, -1).takeIf { it >= 0 }
+                                ?: data.optString(key).trim().toIntOrNull()?.takeIf { it >= 0 }
+                        } else {
+                            null
+                        }
+                    }
+
                 // 服务端明确成功（200 OK 且 success == true）但未返回 nick 时保留兜底昵称
                 if (nick.isEmpty() && userId.isEmpty() && !root.optBoolean("success", false)) {
                     return null
@@ -279,7 +304,8 @@ class AuthRepository private constructor(context: Context) {
                     isLoggedIn = true,
                     userNick = nick.ifBlank { "IT之家用户" },
                     avatarUrl = normalizedAvatar,
-                    userId = userId
+                    userId = userId,
+                    level = level
                 )
             }.getOrNull()
         }

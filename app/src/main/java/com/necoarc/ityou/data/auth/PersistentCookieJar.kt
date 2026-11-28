@@ -93,7 +93,7 @@ class PersistentCookieJar(
             if (eqIdx <= 0) return@forEach
             val name = trimmed.substring(0, eqIdx).trim()
             val value = trimmed.substring(eqIdx + 1).trim()
-            if (name.isEmpty()) return@forEach
+            if (name.isEmpty() || value.isEmpty()) return@forEach
 
             val stored = StoredCookie(
                 name = name,

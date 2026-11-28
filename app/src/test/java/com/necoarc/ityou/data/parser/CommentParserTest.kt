@@ -252,4 +252,100 @@ class CommentParserTest {
         val page = CommentParser.parseComments(sampleJson)
         assertEquals("带标签的正文", page.comments[0].content)
     }
+
+    @Test
+    fun parseComments_extractsEmbeddedImagesAndIgnoresImagePlaceholderText() {
+        val sampleJson = """
+            {
+                "success": true,
+                "content": {
+                    "hotComments": [],
+                    "comments": [
+                        {
+                            "id": 9901,
+                            "userInfo": { "userNick": "图佬", "userAvatar": "//avatar.ithome.com/a.jpg" },
+                            "elements": [
+                                { "type": 0, "content": "真机上手图来了 [坏笑]" },
+                                { "type": 1, "src": "2026/11/sample.jpg", "width": 800, "height": 600 },
+                                { "type": 0, "content": "[图片]" }
+                            ],
+                            "children": []
+                        }
+                    ]
+                }
+            }
+        """.trimIndent()
+
+        val page = CommentParser.parseComments(sampleJson)
+        assertEquals(1, page.comments.size)
+        val comment = page.comments[0]
+        assertEquals("https://avatar.ithome.com/a.jpg", comment.avatarUrl)
+        assertEquals("真机上手图来了 [坏笑]", comment.content)
+        assertEquals(1, comment.images.size)
+        assertEquals("https://qimg.ithome.com/2026/11/sample.jpg", comment.images[0].url)
+        assertEquals(800, comment.images[0].width)
+        assertEquals(600, comment.images[0].height)
+    }
+
+    @Test
+    fun parseImageUploadResponse_handlesNormalAndDoubleEncodedJson() {
+        val standardJson = """
+            {
+                "success": true,
+                "content": {
+                    "url": "//qimg.ithome.com/2026/11/upload.png",
+                    "width": 1080,
+                    "height": 720,
+                    "flag": 1
+                }
+            }
+        """.trimIndent()
+
+        val standard = CommentParser.parseImageUploadResponse(standardJson).getOrThrow()
+        assertEquals("https://qimg.ithome.com/2026/11/upload.png", standard.url)
+        assertEquals(1080, standard.width)
+        assertEquals(720, standard.height)
+        assertEquals(1, standard.flag)
+
+        // 双重 JSON 字符串编码响应
+        val doubleEncoded = "\"{\\\"success\\\":true,\\\"data\\\":{\\\"src\\\":\\\"2026/11/pic.jpg\\\",\\\"width\\\":400,\\\"height\\\":300}}\""
+        val decoded = CommentParser.parseImageUploadResponse(doubleEncoded).getOrThrow()
+        assertEquals("https://qimg.ithome.com/2026/11/pic.jpg", decoded.url)
+        assertEquals(400, decoded.width)
+
+        val failed = CommentParser.parseImageUploadResponse("""{"success":false,"errorMessage":"图片过大"}""")
+        assertTrue(failed.isFailure)
+        assertEquals("图片过大", failed.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun parseSubmitResponse_and_parseVoteResponse_workCorrectly() {
+        val submitJson = """
+            {
+                "success": true,
+                "message": "评论发表成功",
+                "content": {
+                    "id": 88001,
+                    "parentCommentId": 0,
+                    "userInfo": { "userNick": "测试用户" },
+                    "elements": [{ "type": 0, "content": "支持国产" }],
+                    "support": 0,
+                    "against": 0,
+                    "children": []
+                }
+            }
+        """.trimIndent()
+
+        val submitted = CommentParser.parseSubmitResponse(submitJson).getOrThrow()
+        assertEquals("评论发表成功", submitted.message)
+        assertEquals("88001", submitted.comment?.id)
+        assertEquals("支持国产", submitted.comment?.content)
+
+        val voteCount = CommentParser.parseVoteResponse("""{"success":true,"message":"42"}""").getOrThrow()
+        assertEquals(42, voteCount)
+
+        val voteErr = CommentParser.parseVoteResponse("""{"success":false,"message":"请勿重复投票"}""")
+        assertTrue(voteErr.isFailure)
+        assertEquals("请勿重复投票", voteErr.exceptionOrNull()?.message)
+    }
 }

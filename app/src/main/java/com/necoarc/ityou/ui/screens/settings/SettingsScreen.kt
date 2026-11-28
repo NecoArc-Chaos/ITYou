@@ -24,6 +24,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -33,6 +35,7 @@ import androidx.compose.material.icons.outlined.FontDownload
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.MotionPhotosOn
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroup
@@ -63,11 +66,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
@@ -76,14 +81,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.necoarc.ityou.BuildConfig
 import com.necoarc.ityou.data.model.BackAnimationType
 import com.necoarc.ityou.data.model.ThemeMode
+import com.necoarc.ityou.data.repository.AuthRepository
 import com.necoarc.ityou.ui.components.VersionTimelineSheet
 import com.necoarc.ityou.ui.theme.BUNDLED_FONT_CREDIT
 import com.necoarc.ityou.ui.theme.BUNDLED_FONT_NAME
 import com.necoarc.ityou.ui.theme.ShapeCache
 import com.necoarc.ityou.ui.theme.resolveFontFamily
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -91,11 +99,15 @@ import java.util.Locale
 fun SettingsScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLoginClick: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
+    val coroutineScope = rememberCoroutineScope()
+    val authRepository = remember(context) { AuthRepository.getInstance(context) }
+    val authState by authRepository.authState.collectAsStateWithLifecycle()
 
     // `rememberModalBottomSheetState` 已废弃，官方替代：
     // rememberBottomSheetState(initialValue = Hidden, enabledValues = ...)
@@ -174,6 +186,157 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // 0. IT之家账号与互动会话
+            SectionHeader(
+                title = "IT之家账号",
+                icon = Icons.Outlined.AccountCircle,
+                badge = if (authState.isLoggedIn) "已登录" else "未登录"
+            )
+
+            Card(
+                shape = ShapeCache.smooth24,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (authState.isLoggedIn && !authState.avatarUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = authState.avatarUrl,
+                                contentDescription = authState.userNick,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(ShapeCache.smoothPill)
+                            )
+                        } else {
+                            Surface(
+                                shape = ShapeCache.smoothPill,
+                                color = if (authState.isLoggedIn) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceContainerHigh
+                                },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.AccountCircle,
+                                        contentDescription = null,
+                                        tint = if (authState.isLoggedIn) {
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (authState.isLoggedIn) authState.userNick else "未登录 IT之家账号",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (authState.isLoggedIn) {
+                                    "会话已通过 Android Keystore AES-GCM 加密托管"
+                                } else {
+                                    "登录后可发表评论、回复楼中楼、传图与赞/踩互动"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (authState.isLoggedIn) {
+                            FilledTonalButton(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        val res = authRepository.refreshLoginState()
+                                        Toast.makeText(
+                                            context,
+                                            if (res.isSuccess) "账号状态已同步" else "会话校验失败：${res.exceptionOrNull()?.localizedMessage ?: ""}",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                },
+                                enabled = !authState.isChecking,
+                                shape = ShapeCache.smoothPill,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                if (authState.isChecking) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("刷新状态", style = MaterialTheme.typography.labelLarge)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        authRepository.logout()
+                                        Toast.makeText(context, "已退出登录", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                shape = ShapeCache.smoothPill
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Outlined.Logout,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("退出登录", style = MaterialTheme.typography.labelLarge)
+                            }
+                        } else {
+                            Button(
+                                onClick = onLoginClick,
+                                shape = ShapeCache.smoothPill,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.AccountCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("立即登录 IT之家", style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
             // 1. 外观与表现力
             SectionHeader(title = "外观与表现力", icon = Icons.Outlined.Palette)
 

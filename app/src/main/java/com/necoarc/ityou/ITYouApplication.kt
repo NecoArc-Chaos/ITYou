@@ -8,6 +8,7 @@ import coil.ImageLoaderFactory
 import coil.decode.SvgDecoder
 import coil.memory.MemoryCache
 import com.necoarc.ityou.data.remote.NetworkClient
+import com.necoarc.ityou.data.repository.AuthRepository
 
 object ITYouApplicationSingleton {
     @SuppressLint("StaticFieldLeak")
@@ -23,6 +24,7 @@ class ITYouApplication : Application(), ImageLoaderFactory {
         super.onCreate()
         ITYouApplicationSingleton.appContext = this.applicationContext
         NetworkClient.initialize(this)
+        AuthRepository.getInstance(this)
     }
 
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)

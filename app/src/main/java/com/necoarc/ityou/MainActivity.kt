@@ -35,6 +35,7 @@ import com.necoarc.ityou.data.repository.SettingsRepository
 import com.necoarc.ityou.ui.screens.detail.DetailScreen
 import com.necoarc.ityou.ui.screens.favorites.FavoritesScreen
 import com.necoarc.ityou.ui.screens.home.HomeScreen
+import com.necoarc.ityou.ui.screens.login.LoginScreen
 import com.necoarc.ityou.ui.screens.settings.SettingsScreen
 import com.necoarc.ityou.ui.theme.ITYouTheme
 import com.necoarc.ityou.ui.theme.resolveFontFamily
@@ -223,6 +224,9 @@ fun ITYouNavApp(backAnimation: BackAnimationType) {
                             pubTime = relPubTime
                         )
                     )
+                },
+                onLoginClick = {
+                    navController.navigate("login")
                 }
             )
         }
@@ -248,6 +252,38 @@ fun ITYouNavApp(backAnimation: BackAnimationType) {
         ) {
             SettingsScreen(
                 onBackClick = {
+                    navController.popBackStack()
+                },
+                onLoginClick = {
+                    navController.navigate("login")
+                }
+            )
+        }
+
+        composable(
+            route = "login",
+            enterTransition = {
+                when (backAnimation) {
+                    BackAnimationType.SPRING_SLIDE -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, navSpring) + fadeIn()
+                    BackAnimationType.CONTAINER_SCALE -> scaleIn(initialScale = 0.90f, animationSpec = scaleSpring) + fadeIn()
+                    BackAnimationType.SUBTLE_FADE -> fadeIn(animationSpec = tween(220))
+                    BackAnimationType.DRAWER_LIFT -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Up, navSpring) + fadeIn()
+                }
+            },
+            popExitTransition = {
+                when (backAnimation) {
+                    BackAnimationType.SPRING_SLIDE -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, navSpring) + fadeOut()
+                    BackAnimationType.CONTAINER_SCALE -> scaleOut(targetScale = 0.90f, animationSpec = scaleSpring) + fadeOut()
+                    BackAnimationType.SUBTLE_FADE -> fadeOut(animationSpec = tween(180))
+                    BackAnimationType.DRAWER_LIFT -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, navSpring) + fadeOut()
+                }
+            }
+        ) {
+            LoginScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onLoginSuccess = {
                     navController.popBackStack()
                 }
             )

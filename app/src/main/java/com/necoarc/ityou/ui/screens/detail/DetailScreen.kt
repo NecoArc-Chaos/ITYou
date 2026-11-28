@@ -12,20 +12,23 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FormatSize
 import androidx.compose.material.icons.outlined.OpenInBrowser
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FabPosition
@@ -65,10 +68,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.necoarc.ityou.data.model.FavoriteArticle
+import com.necoarc.ityou.data.repository.AuthRepository
 import com.necoarc.ityou.data.repository.FavoriteRepository
 import com.necoarc.ityou.data.repository.SettingsRepository
 import com.necoarc.ityou.data.share.ArticleSharer
 import com.necoarc.ityou.ui.components.DetailSkeletonScreen
+import com.necoarc.ityou.ui.screens.detail.components.CommentComposerSheet
 import com.necoarc.ityou.ui.screens.detail.components.DetailContent
 import com.necoarc.ityou.ui.screens.detail.components.ImageViewerDialog
 import com.necoarc.ityou.ui.screens.detail.components.commentsHeaderIndex
@@ -86,6 +91,7 @@ fun DetailScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     onRelatedArticleClick: (id: String, url: String, title: String, pubTime: String) -> Unit = { _, _, _, _ -> },
+    onLoginClick: () -> Unit = {},
     viewModel: DetailViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -94,10 +100,11 @@ fun DetailScreen(
     val coroutineScope = rememberCoroutineScope()
     val favoriteRepository = remember(context) { FavoriteRepository.getInstance(context) }
     val settingsRepository = remember(context) { SettingsRepository.getInstance(context) }
+    val authRepository = remember(context) { AuthRepository.getInstance(context) }
     val settings by settingsRepository.settings.collectAsStateWithLifecycle()
+    val authState by authRepository.authState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
-    // 收藏状态以仓库为唯一数据源
     val favorites by favoriteRepository.favorites.collectAsStateWithLifecycle()
     val isStarred = favorites.any { it.id == articleId }
 
@@ -105,8 +112,32 @@ fun DetailScreen(
     var toastMessage by remember { mutableStateOf<String?>(null) }
     var showFontControls by remember { mutableStateOf(false) }
 
-    // 正文大图手势全屏查看状态
+    // 未登录操作引导与登录完成后的自动续接动作
+    var showLoginPromptDialog by remember { mutableStateOf(false) }
+    var pendingAuthAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    // 正文及评论附图手势全屏查看状态
     var previewingImage by remember { mutableStateOf<Pair<String, String?>?>(null) }
+
+    fun requireAuth(action: () -> Unit) {
+        if (authState.isLoggedIn) {
+            action()
+        } else {
+            pendingAuthAction = action
+            showLoginPromptDialog = true
+        }
+    }
+
+    // 从登录页成功登录返回后，自动执行刚刚被拦截的写评论/回复/点赞操作
+    LaunchedEffect(authState.isLoggedIn) {
+        if (authState.isLoggedIn) {
+            showLoginPromptDialog = false
+            pendingAuthAction?.let { action ->
+                pendingAuthAction = null
+                action()
+            }
+        }
+    }
 
     LaunchedEffect(articleId, articleUrl) {
         viewModel.loadArticleDetail(
@@ -126,6 +157,14 @@ fun DetailScreen(
         toastMessage?.let { message ->
             snackbarHostState.showSnackbar(message = message)
             toastMessage = null
+        }
+    }
+
+    val actionMessage = uiState.actionMessage
+    LaunchedEffect(actionMessage) {
+        actionMessage?.let { message ->
+            snackbarHostState.showSnackbar(message = message)
+            viewModel.consumeActionMessage()
         }
     }
 
@@ -257,7 +296,7 @@ fun DetailScreen(
                         }
                     }
 
-                    // MD3E 底部悬浮工具栏：单手即可触及收藏、跳评论、字号、分享
+                    // MD3E 底部悬浮工具栏：收藏、写评论、跳评论、字号、分享
                     HorizontalFloatingToolbar(
                         expanded = true,
                         colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(
@@ -273,8 +312,8 @@ fun DetailScreen(
                                         FavoriteArticle(
                                             id = articleId,
                                             title = shareTitle,
-                                            author = detail?.author ?: previewAuthor,
-                                            pubTime = detail?.publishTime ?: previewPubTime,
+                                            author = detail.author.ifBlank { previewAuthor },
+                                            pubTime = detail.publishTime.ifBlank { previewPubTime },
                                             url = shareUrl,
                                             favoritedAt = System.currentTimeMillis()
                                         )
@@ -289,16 +328,22 @@ fun DetailScreen(
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(
+                            onClick = {
+                                requireAuth { viewModel.openComposer(replyTarget = null) }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Edit,
+                                contentDescription = "发表评论"
+                            )
+                        }
 
                         IconButton(
-                            enabled = detail != null,
                             onClick = {
-                                detail?.let { loaded ->
-                                    coroutineScope.launch {
-                                        runCatching {
-                                            listState.animateScrollToItem(commentsHeaderIndex(loaded))
-                                        }
+                                coroutineScope.launch {
+                                    runCatching {
+                                        listState.animateScrollToItem(commentsHeaderIndex(detail))
                                     }
                                 }
                             }
@@ -309,8 +354,6 @@ fun DetailScreen(
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(4.dp))
-
                         IconButton(
                             onClick = { showFontControls = !showFontControls }
                         ) {
@@ -319,8 +362,6 @@ fun DetailScreen(
                                 contentDescription = "调节字号"
                             )
                         }
-
-                        Spacer(modifier = Modifier.width(4.dp))
 
                         IconButton(
                             onClick = {
@@ -363,8 +404,18 @@ fun DetailScreen(
                         isCommentsLoading = uiState.isCommentsLoading,
                         commentsError = uiState.commentsError,
                         expandingCommentIds = uiState.expandingCommentIds,
+                        votingCommentIds = uiState.votingCommentIds,
                         onRetryComments = viewModel::retryComments,
                         onExpandReplies = viewModel::expandCommentReplies,
+                        onWriteCommentClick = {
+                            requireAuth { viewModel.openComposer(replyTarget = null) }
+                        },
+                        onReplyComment = { target ->
+                            requireAuth { viewModel.openComposer(replyTarget = target) }
+                        },
+                        onVoteComment = { commentId, isSupport ->
+                            requireAuth { viewModel.toggleVote(commentId, isSupport) }
+                        },
                         onRelatedArticleClick = onRelatedArticleClick,
                         articleFontScale = settings.articleFontScale,
                         onImageClick = { url, caption ->
@@ -381,6 +432,92 @@ fun DetailScreen(
                         onRetry = viewModel::retry,
                         windowInsetsPadding = innerPadding
                     )
+                }
+            }
+        }
+
+        // 评论编辑器底部抽屉（支持图文混排 + 表情选择）
+        if (uiState.isComposerOpen) {
+            CommentComposerSheet(
+                replyTarget = uiState.replyTarget,
+                isSubmitting = uiState.isSubmittingComment,
+                submittingStatus = uiState.submittingStatus,
+                onDismissRequest = viewModel::closeComposer,
+                onSubmit = { text, images ->
+                    viewModel.submitComment(
+                        text = text,
+                        images = images
+                    )
+                }
+            )
+        }
+
+        // 未登录引导弹窗（MD3E SurfaceContainerHigh + 大圆角）
+        if (showLoginPromptDialog) {
+            BasicAlertDialog(
+                onDismissRequest = {
+                    showLoginPromptDialog = false
+                    pendingAuthAction = null
+                }
+            ) {
+                Surface(
+                    shape = ShapeCache.smooth28,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Surface(
+                            shape = ShapeCache.smoothPill,
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.AccountCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                        Text(
+                            text = "需要登录 IT之家账号",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "登录后即可发表评论、回复楼中楼、上传附图及进行赞/踩互动，登录成功将自动返回当前页面。",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    showLoginPromptDialog = false
+                                    pendingAuthAction = null
+                                }
+                            ) {
+                                Text("暂不")
+                            }
+                            Button(
+                                onClick = {
+                                    showLoginPromptDialog = false
+                                    onLoginClick()
+                                },
+                                shape = ShapeCache.smoothPill
+                            ) {
+                                Text("去登录")
+                            }
+                        }
+                    }
                 }
             }
         }

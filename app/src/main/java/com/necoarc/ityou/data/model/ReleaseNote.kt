@@ -34,10 +34,22 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v2.3.0",
+        releaseDate = "2026-11-28",
+        summary = "正式接入 IT之家账号登录与完整评论互动体系：支持 WebView 安全登录与 Keystore 加密会话持久化、发表主评与楼中楼回复、表情面板、附图上传及评论赞/踩互动。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FEATURE, "账号登录系统：内嵌 WebView 统一登录页并同步跨站会话，采用 Android Keystore AES-GCM 加密持久保存 Cookie"),
+            ChangeItem(ChangeType.FEATURE, "完整评论发布与回复：新增 MD3E 评论编辑器抽屉，支持发表主评论、楼中楼回复 @某人、150+ 原生 SVG 表情面板与最多 3 张附图上传"),
+            ChangeItem(ChangeType.FEATURE, "评论互动与图文展示：新增评论赞/踩及取消投票，支持展示评论内嵌附图并点击大图手势缩放查看"),
+            ChangeItem(ChangeType.IMPROVEMENT, "无缝鉴权引导：设置页新增「IT之家账号」卡片，详情页未登录操作时智能引导登录并在返回后自动续接")
+        )
+    ),
+    ReleaseNote(
         version = "v2.2.0",
         releaseDate = "2026-11-26",
         summary = "深度统一全应用 MD3E 设计语言与 MotionScheme 动效，详情页新增单手友好 HorizontalFloatingToolbar 悬浮工具栏、字号实时调节、主题模式切换、富文本超链接与列表排版，并真正接通高清图片模式。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "详情页悬浮工具栏：引入 MD3E HorizontalFloatingToolbar，单手即可收藏、跳转评论、调节正文字号与分享"),
             ChangeItem(ChangeType.FEATURE, "个性化阅读增强：新增应用内主题模式切换（跟随系统/浅色/深色）与四档正文字号缩放"),

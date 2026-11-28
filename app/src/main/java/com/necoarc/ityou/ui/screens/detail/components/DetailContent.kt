@@ -24,8 +24,12 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -68,8 +72,12 @@ fun DetailContent(
     isCommentsLoading: Boolean,
     commentsError: String?,
     expandingCommentIds: Set<String>,
+    votingCommentIds: Set<String> = emptySet(),
     onRetryComments: () -> Unit,
     onExpandReplies: (String) -> Unit,
+    onWriteCommentClick: () -> Unit = {},
+    onReplyComment: (ArticleComment) -> Unit = {},
+    onVoteComment: (commentId: String, isSupport: Boolean) -> Unit = { _, _ -> },
     onRelatedArticleClick: (id: String, url: String, title: String, pubTime: String) -> Unit,
     articleFontScale: Float = 1.0f,
     onImageClick: (url: String, caption: String?) -> Unit = { _, _ -> }
@@ -348,26 +356,49 @@ fun DetailContent(
         item(key = "comments_header", contentType = "comments_header") {
             Spacer(modifier = Modifier.height(16.dp))
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .height(18.dp)
-                        .background(MaterialTheme.colorScheme.primary, ShapeCache.smooth8)
-                )
-                Text(
-                    text = "评论",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                if (comments.isNotEmpty()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(4.dp)
+                            .height(18.dp)
+                            .background(MaterialTheme.colorScheme.primary, ShapeCache.smooth8)
+                    )
                     Text(
-                        text = "(${comments.size})",
+                        text = "评论",
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.outline
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    if (comments.isNotEmpty()) {
+                        Text(
+                            text = "(${comments.size})",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+
+                FilledTonalButton(
+                    onClick = onWriteCommentClick,
+                    shape = ShapeCache.smoothPill,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "写评论",
+                        style = MaterialTheme.typography.labelLarge
                     )
                 }
             }
@@ -398,7 +429,11 @@ fun DetailContent(
                     CommentItem(
                         comment = comment,
                         isExpandingReplies = comment.id in expandingCommentIds,
-                        onExpandReplies = { onExpandReplies(comment.id) }
+                        votingCommentIds = votingCommentIds,
+                        onExpandReplies = { onExpandReplies(comment.id) },
+                        onReplyClick = onReplyComment,
+                        onVoteClick = onVoteComment,
+                        onImageClick = { imgUrl -> onImageClick(imgUrl, null) }
                     )
                 }
             }

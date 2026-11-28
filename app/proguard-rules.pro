@@ -32,6 +32,12 @@
     <init>(...);
 }
 
+# ---- WebView JS 桥接 ----
+# 防止 R8 裁剪或混淆 @JavascriptInterface 暴露给前端回调的方法
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
 # ---- 保留行号信息，便于线上崩溃定位（配合 mapping.txt） ----
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile

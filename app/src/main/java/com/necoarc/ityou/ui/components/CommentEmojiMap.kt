@@ -174,6 +174,9 @@ internal object CommentEmojiMap {
      */
     val TOKEN_REGEX = Regex("\\[([^\\[\\]]{1,10})\\]")
 
+    /** 全部可用表情名称清单（供评论表情选择器展示）。 */
+    val allNames: List<String> by lazy { NAME_TO_KEY.keys.toList() }
+
     /** 将表情名称解析为完整资源 URL；非表情返回 null。 */
     fun urlFor(name: String): String? = NAME_TO_KEY[name]?.let { "$BASE_URL$it.svg" }
 

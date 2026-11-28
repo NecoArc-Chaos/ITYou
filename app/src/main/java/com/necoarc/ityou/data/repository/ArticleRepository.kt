@@ -7,13 +7,20 @@ import com.necoarc.ityou.data.model.ArticleCategory
 import com.necoarc.ityou.data.model.ArticleComment
 import com.necoarc.ityou.data.model.ArticleDetail
 import com.necoarc.ityou.data.model.ArticlePage
+import com.necoarc.ityou.data.model.CommentSubmitResult
+import com.necoarc.ityou.data.model.UploadedCommentImage
 import com.necoarc.ityou.data.parser.CommentPageResult
 import com.necoarc.ityou.data.parser.CommentParser
 import com.necoarc.ityou.data.parser.HtmlParser
 import com.necoarc.ityou.data.remote.NetworkClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import java.io.IOException
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -278,6 +285,159 @@ open class ArticleRepository(
         }
 
     /**
+     * 上传单张评论附图（`/api/image/uploadimage`）。
+     */
+    suspend fun uploadCommentImage(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String = "image/jpeg"
+    ): Result<UploadedCommentImage> = withContext(Dispatchers.IO) {
+        if (bytes.isEmpty()) {
+            return@withContext Result.failure(IOException("图片内容为空"))
+        }
+        try {
+            val mediaType = mimeType.toMediaTypeOrNull() ?: "image/jpeg".toMediaType()
+            val body = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("file", fileName, bytes.toRequestBody(mediaType))
+                .build()
+
+            val request = Request.Builder()
+                .url(COMMENT_IMAGE_UPLOAD_URL)
+                .post(body)
+                .header("User-Agent", NetworkClient.USER_AGENT)
+                .header("Origin", "https://www.ithome.com")
+                .header("Referer", "https://www.ithome.com/")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.code == 401 || response.code == 403) {
+                    return@withContext Result.failure(IOException("登录状态已失效，请重新登录"))
+                }
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException("图片上传失败 (HTTP ${response.code})"))
+                }
+                val raw = response.body?.string().orEmpty()
+                CommentParser.parseImageUploadResponse(raw)
+            }
+        } catch (c: CancellationException) {
+            throw c
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 发表评论或楼中楼回复（`/apiv2/comment/submit`）。
+     *
+     * @param newsId 文章数字 ID
+     * @param text 评论文本（可含 `[表情]`）
+     * @param images 已上传的附图列表
+     * @param replyCommentId 被回复评论 ID；0 表示发表主楼评论
+     */
+    suspend fun submitComment(
+        newsId: String,
+        text: String,
+        images: List<UploadedCommentImage> = emptyList(),
+        replyCommentId: Long = 0L
+    ): Result<CommentSubmitResult> = withContext(Dispatchers.IO) {
+        val numericId = newsId.trim().takeIf { it.isNotEmpty() && it.all(Char::isDigit) }
+            ?: return@withContext Result.failure(IOException("无法识别文章 ID，暂不支持评论"))
+
+        if (text.isBlank() && images.isEmpty()) {
+            return@withContext Result.failure(IOException("评论内容或图片不能为空"))
+        }
+
+        try {
+            val payload = JSONObject().apply {
+                put("newsId", numericId)
+                put("elements", CommentParser.buildSubmitElementsJson(text, images))
+                put("replyCommentId", replyCommentId)
+                put("ver", "900")
+            }
+
+            val request = Request.Builder()
+                .url(COMMENT_SUBMIT_URL)
+                .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .header("User-Agent", NetworkClient.USER_AGENT)
+                .header("Origin", "https://www.ithome.com")
+                .header("Referer", "https://www.ithome.com/")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.code == 401 || response.code == 403) {
+                    return@withContext Result.failure(IOException("请先登录 IT之家账号后再发表评论"))
+                }
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException("评论发送失败 (HTTP ${response.code})"))
+                }
+                val raw = response.body?.string().orEmpty()
+                CommentParser.parseSubmitResponse(raw)
+            }
+        } catch (c: CancellationException) {
+            throw c
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 评论赞/踩及取消投票（`/api/comment/vote` & `/api/comment/cancelvote`）。
+     */
+    suspend fun voteComment(
+        commentId: String,
+        isSupport: Boolean,
+        cancel: Boolean
+    ): Result<Int?> = withContext(Dispatchers.IO) {
+        if (commentId.isBlank()) {
+            return@withContext Result.failure(IOException("无效的评论 ID"))
+        }
+        try {
+            val typeId = if (isSupport) 1 else 2
+            val endpoint = if (cancel) COMMENT_CANCEL_VOTE_URL else COMMENT_VOTE_URL
+            val request = Request.Builder()
+                .url("$endpoint?commentid=$commentId&typeid=$typeId")
+                .get()
+                .header("User-Agent", NetworkClient.USER_AGENT)
+                .header("Origin", "https://www.ithome.com")
+                .header("Referer", "https://www.ithome.com/")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.code == 401 || response.code == 403) {
+                    return@withContext Result.failure(IOException("请先登录 IT之家账号后再投票"))
+                }
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException("操作失败 (HTTP ${response.code})"))
+                }
+                val raw = response.body?.string().orEmpty()
+                CommentParser.parseVoteResponse(raw)
+            }
+        } catch (c: CancellationException) {
+            throw c
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 解析文章数字 `newsId`（兼容移动端 URL、PC 多段路径及纯数字 ID）。
+     */
+    fun resolveNumericNewsId(articleId: String, articleUrl: String): String? {
+        val cleanId = articleId.trim()
+        if (cleanId.isNotEmpty() && cleanId.all(Char::isDigit)) return cleanId
+        // 匹配 PC 三段式路径 /1/009/170.htm -> 1009170
+        PC_NEWS_ID_REGEX.find(articleUrl)?.let { m ->
+            return m.groupValues[1] + m.groupValues[2] + m.groupValues[3]
+        }
+        // 匹配移动端路径 /html/1009170.htm -> 1009170
+        MOBILE_NEWS_ID_REGEX.find(articleUrl)?.let { m ->
+            return m.groupValues[1]
+        }
+        return null
+    }
+
+    /**
      * 解析评论 `sn` 令牌：移动端详情页 → canonical PC 地址 → PC 页面 `sn`。
      */
     private fun resolveCommentSn(url: String): String? {
@@ -385,6 +545,13 @@ open class ArticleRepository(
     companion object {
         private const val NEWS_LIST_API = "https://m.ithome.com/api/news/newslistpageget"
         private const val RSS_FEED = "https://www.ithome.com/rss/"
+        private const val COMMENT_IMAGE_UPLOAD_URL = "https://cmt.ithome.com/api/image/uploadimage"
+        private const val COMMENT_SUBMIT_URL = "https://cmt.ithome.com/apiv2/comment/submit?appver=900"
+        private const val COMMENT_VOTE_URL = "https://cmt.ithome.com/api/comment/vote"
+        private const val COMMENT_CANCEL_VOTE_URL = "https://cmt.ithome.com/api/comment/cancelvote"
+        private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+        private val PC_NEWS_ID_REGEX = Regex("""/(\d+)/(\d+)/(\d+)\.htm""")
+        private val MOBILE_NEWS_ID_REGEX = Regex("""/(\d{5,})\.htm""")
 
         /**
          * 构造资讯列表请求 URL（纯函数，便于单元测试）。

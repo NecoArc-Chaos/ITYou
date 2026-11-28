@@ -1,6 +1,8 @@
 package com.necoarc.ityou.data.remote
 
 import android.content.Context
+import com.necoarc.ityou.data.auth.PersistentCookieJar
+import com.necoarc.ityou.data.auth.SecureCookieStore
 import okhttp3.Cache
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -36,32 +38,44 @@ object NetworkClient {
     @Volatile
     private var instance: OkHttpClient? = null
 
+    @Volatile
+    private var cookieJarInstance: PersistentCookieJar? = null
+
     /**
-     * 由 `ITYouApplication` 在进程启动时调用（需要 Context 才能建立磁盘缓存）。
+     * 由 `ITYouApplication` 在进程启动时调用（需要 Context 才能建立磁盘缓存与加密 Cookie 存储）。
      */
     fun initialize(context: Context) {
         if (instance != null) return
         synchronized(this) {
             if (instance != null) return
             val appContext = context.applicationContext
+            val jar = PersistentCookieJar(store = SecureCookieStore.create(appContext))
+            cookieJarInstance = jar
             val cache = Cache(
                 directory = File(appContext.cacheDir, HTTP_CACHE_DIR),
                 maxSize = HTTP_CACHE_SIZE_BYTES
             )
-            instance = baseBuilder()
+            instance = baseBuilder(jar)
                 .cache(cache)
                 .addInterceptor(newsApiCacheInterceptor)
                 .build()
         }
     }
 
+    /** 持久化 CookieJar（供 AuthRepository 与 WebView 同步会话使用）。 */
+    val cookieJar: PersistentCookieJar
+        get() = cookieJarInstance ?: fallbackCookieJar
+
     /** 供 API 与 Coil 共用的客户端；未初始化时（例如单元测试）退化为无磁盘缓存版本。 */
     val client: OkHttpClient
         get() = instance ?: fallback
 
-    private val fallback: OkHttpClient by lazy { baseBuilder().build() }
+    private val fallbackCookieJar: PersistentCookieJar by lazy { PersistentCookieJar() }
 
-    private fun baseBuilder(): OkHttpClient.Builder = OkHttpClient.Builder()
+    private val fallback: OkHttpClient by lazy { baseBuilder(fallbackCookieJar).build() }
+
+    private fun baseBuilder(jar: PersistentCookieJar): OkHttpClient.Builder = OkHttpClient.Builder()
+        .cookieJar(jar)
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)

@@ -12,6 +12,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,8 +22,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Reply
+import androidx.compose.material.icons.outlined.ThumbDown
+import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -49,7 +56,11 @@ import com.necoarc.ityou.ui.theme.ShapeCache
 fun CommentItem(
     comment: ArticleComment,
     isExpandingReplies: Boolean = false,
-    onExpandReplies: () -> Unit = {}
+    votingCommentIds: Set<String> = emptySet(),
+    onExpandReplies: () -> Unit = {},
+    onReplyClick: (ArticleComment) -> Unit = {},
+    onVoteClick: (commentId: String, isSupport: Boolean) -> Unit = { _, _ -> },
+    onImageClick: (url: String) -> Unit = {}
 ) {
     // 楼中楼默认折叠，点击「展开 N 条回复」才渲染，避免长评论串一次性铺满
     var repliesExpanded by remember(comment.id) { mutableStateOf(false) }
@@ -74,7 +85,13 @@ fun CommentItem(
                 .fillMaxWidth()
                 .padding(12.dp)
         ) {
-            CommentRow(comment = comment)
+            CommentRow(
+                comment = comment,
+                isVoting = comment.id in votingCommentIds,
+                onReplyClick = { onReplyClick(comment) },
+                onVoteClick = { isSupport -> onVoteClick(comment.id, isSupport) },
+                onImageClick = onImageClick
+            )
 
             // 楼中楼：有回复时展示折叠入口
             if (comment.replies.isNotEmpty()) {
@@ -108,7 +125,14 @@ fun CommentItem(
                                         .padding(vertical = 3.dp)
                                 ) {
                                     Box(modifier = Modifier.padding(10.dp)) {
-                                        CommentRow(comment = reply, compact = true)
+                                        CommentRow(
+                                            comment = reply,
+                                            compact = true,
+                                            isVoting = reply.id in votingCommentIds,
+                                            onReplyClick = { onReplyClick(reply) },
+                                            onVoteClick = { isSupport -> onVoteClick(reply.id, isSupport) },
+                                            onImageClick = onImageClick
+                                        )
                                     }
                                 }
                             }
@@ -161,8 +185,16 @@ fun CommentItem(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun CommentRow(comment: ArticleComment, compact: Boolean = false) {
+fun CommentRow(
+    comment: ArticleComment,
+    compact: Boolean = false,
+    isVoting: Boolean = false,
+    onReplyClick: () -> Unit = {},
+    onVoteClick: (isSupport: Boolean) -> Unit = {},
+    onImageClick: (url: String) -> Unit = {}
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -258,11 +290,33 @@ fun CommentRow(comment: ArticleComment, compact: Boolean = false) {
                 }
             }
 
-            // 元信息：时间 / 点赞 / 反对
-            Spacer(modifier = Modifier.height(6.dp))
+            // 评论附图
+            if (comment.images.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    comment.images.forEach { img ->
+                        AsyncImage(
+                            model = img.url,
+                            contentDescription = "评论附图",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(if (compact) 84.dp else 108.dp)
+                                .clip(ShapeCache.smooth12)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                .clickable { onImageClick(img.url) }
+                        )
+                    }
+                }
+            }
+
+            // 元信息与互动胶囊（时间 / 赞 / 踩 / 回复）
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (comment.location.isNotEmpty() && !compact) {
                     Text(
@@ -281,21 +335,81 @@ fun CommentRow(comment: ArticleComment, compact: Boolean = false) {
                     )
                 }
                 Spacer(modifier = Modifier.weight(1f))
-                if (comment.supportCount > 0) {
-                    Text(
-                        text = "赞 ${comment.supportCount}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-                if (comment.againstCount > 0 && !compact) {
-                    Text(
-                        text = "踩 ${comment.againstCount}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
+
+                // 支持 / 赞
+                CommentActionPill(
+                    icon = Icons.Outlined.ThumbUp,
+                    label = if (comment.supportCount > 0) "${comment.supportCount}" else "赞",
+                    active = comment.isSupported,
+                    activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    enabled = !isVoting,
+                    onClick = { onVoteClick(true) }
+                )
+
+                // 反对 / 踩
+                CommentActionPill(
+                    icon = Icons.Outlined.ThumbDown,
+                    label = if (comment.againstCount > 0) "${comment.againstCount}" else "踩",
+                    active = comment.isAgainst,
+                    activeContainerColor = MaterialTheme.colorScheme.errorContainer,
+                    activeContentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    enabled = !isVoting,
+                    onClick = { onVoteClick(false) }
+                )
+
+                // 回复
+                CommentActionPill(
+                    icon = Icons.AutoMirrored.Outlined.Reply,
+                    label = "回复",
+                    active = false,
+                    activeContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    activeContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    enabled = true,
+                    onClick = onReplyClick
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun CommentActionPill(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    active: Boolean,
+    activeContainerColor: androidx.compose.ui.graphics.Color,
+    activeContentColor: androidx.compose.ui.graphics.Color,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val bgColor = if (active) activeContainerColor else MaterialTheme.colorScheme.surfaceContainerHighest
+    val fgColor = if (active) activeContentColor else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Surface(
+        shape = ShapeCache.smoothPill,
+        color = bgColor,
+        modifier = Modifier
+            .clip(ShapeCache.smoothPill)
+            .clickable(enabled = enabled, onClick = onClick)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = fgColor,
+                modifier = Modifier.size(13.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                color = fgColor
+            )
         }
     }
 }

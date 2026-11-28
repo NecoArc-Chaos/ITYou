@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
@@ -54,7 +53,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,9 +74,7 @@ import com.necoarc.ityou.ui.components.DetailSkeletonScreen
 import com.necoarc.ityou.ui.screens.detail.components.CommentComposerSheet
 import com.necoarc.ityou.ui.screens.detail.components.DetailContent
 import com.necoarc.ityou.ui.screens.detail.components.ImageViewerDialog
-import com.necoarc.ityou.ui.screens.detail.components.commentsHeaderIndex
 import com.necoarc.ityou.ui.theme.ShapeCache
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,7 +93,6 @@ fun DetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val favoriteRepository = remember(context) { FavoriteRepository.getInstance(context) }
     val settingsRepository = remember(context) { SettingsRepository.getInstance(context) }
     val authRepository = remember(context) { AuthRepository.getInstance(context) }
@@ -296,7 +291,7 @@ fun DetailScreen(
                         }
                     }
 
-                    // MD3E 底部悬浮工具栏：收藏、写评论、跳评论、字号、分享
+                    // MD3E 底部悬浮工具栏：收藏、写评论、字号、分享
                     HorizontalFloatingToolbar(
                         expanded = true,
                         colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(
@@ -336,21 +331,6 @@ fun DetailScreen(
                             Icon(
                                 imageVector = Icons.Outlined.Edit,
                                 contentDescription = "发表评论"
-                            )
-                        }
-
-                        IconButton(
-                            onClick = {
-                                coroutineScope.launch {
-                                    runCatching {
-                                        listState.animateScrollToItem(commentsHeaderIndex(detail))
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Outlined.Chat,
-                                contentDescription = "跳转评论区"
                             )
                         }
 

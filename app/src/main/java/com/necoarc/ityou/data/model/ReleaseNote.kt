@@ -34,10 +34,20 @@ data class ReleaseNote(
  */
 val AppReleaseHistory = listOf(
     ReleaseNote(
+        version = "v2.3.1",
+        releaseDate = "2026-11-28",
+        summary = "修复登录页 WebView 空白不显示的问题，精简详情页底部悬浮工具栏，移除多余的跳转评论按钮。",
+        isLatest = true,
+        changes = listOf(
+            ChangeItem(ChangeType.FIX, "修复登录页 WebView 白屏：补全 MATCH_PARENT 布局参数与混合内容权限，改为直连软媒官方登录页并拦截回调自动同步会话"),
+            ChangeItem(ChangeType.IMPROVEMENT, "精简底部悬浮工具栏：移除冗余的跳转评论按钮，只保留收藏、发表评论、字号与分享四项核心操作")
+        )
+    ),
+    ReleaseNote(
         version = "v2.3.0",
         releaseDate = "2026-11-28",
         summary = "正式接入 IT之家账号登录与完整评论互动体系：支持 WebView 安全登录与 Keystore 加密会话持久化、发表主评与楼中楼回复、表情面板、附图上传及评论赞/踩互动。",
-        isLatest = true,
+        isLatest = false,
         changes = listOf(
             ChangeItem(ChangeType.FEATURE, "账号登录系统：内嵌 WebView 统一登录页并同步跨站会话，采用 Android Keystore AES-GCM 加密持久保存 Cookie"),
             ChangeItem(ChangeType.FEATURE, "完整评论发布与回复：新增 MD3E 评论编辑器抽屉，支持发表主评论、楼中楼回复 @某人、150+ 原生 SVG 表情面板与最多 3 张附图上传"),

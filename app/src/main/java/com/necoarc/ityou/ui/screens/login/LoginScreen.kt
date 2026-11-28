@@ -2,21 +2,18 @@ package com.necoarc.ityou.ui.screens.login
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.view.ViewGroup
 import android.webkit.CookieManager
-import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -41,14 +38,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -57,12 +53,16 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.necoarc.ityou.data.repository.AuthRepository
 import com.necoarc.ityou.ui.theme.ShapeCache
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 /**
  * IT之家 WebView 统一登录页。
  *
- * 通过加载处于 `https://www.ithome.com/` 上下文中的软媒 `login.min.js` embed 模式，
- * 完整支持账号密码、短信验证码、图形/滑块风控验证以及 `.ithome.com` 跨域 Cookie 同步。
+ * 直接加载软媒官方统一登录页 `https://my.ruanmei.com/user-login/index.htm`（附带 `forsid` 与主题配色），
+ * 避免 `loadDataWithBaseURL` 在嵌套 iframe 场景下因安全源或容器高度坍缩导致的白屏问题。
+ * 登录成功后官方页会自动执行跨站种 Cookie 并跳转回 `https://m.ithome.com/`，
+ * 客户端拦截该回调跳转并同步加密持久化 `.ithome.com` 会话 Cookie。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,14 +76,13 @@ fun LoginScreen(
     val authRepository = remember(context) { AuthRepository.getInstance(context) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val primaryColor = MaterialTheme.colorScheme.primary
     val primaryHex = remember(primaryColor) {
-        String.format("#%06X", 0xFFFFFF and primaryColor.toArgb())
+        String.format("%06X", 0xFFFFFF and primaryColor.toArgb())
     }
-    val bgColor = MaterialTheme.colorScheme.background
-    val bgHex = remember(bgColor) {
-        String.format("#%06X", 0xFFFFFF and bgColor.toArgb())
+    val loginUrl = remember(isDark, primaryHex) {
+        buildDirectLoginUrl(isDark = isDark, primaryHex = primaryHex)
     }
 
     var isPageLoading by remember { mutableStateOf(true) }
@@ -110,15 +109,10 @@ fun LoginScreen(
         }
     }
 
-    val loginBridgeHtml = remember(isDark, primaryHex, bgHex) {
-        buildEmbedLoginHtml(isDark = isDark, primaryHex = primaryHex, bgHex = bgHex)
-    }
-
     DisposableEffect(Unit) {
         onDispose {
             webViewRef?.apply {
                 stopLoading()
-                removeJavascriptInterface("ITYouAuth")
                 destroy()
             }
             webViewRef = null
@@ -179,15 +173,7 @@ fun LoginScreen(
                         }
                     }
                     FilledTonalIconButton(
-                        onClick = {
-                            webViewRef?.loadDataWithBaseURL(
-                                "https://www.ithome.com/user-login-bridge",
-                                loginBridgeHtml,
-                                "text/html",
-                                "UTF-8",
-                                null
-                            )
-                        },
+                        onClick = { webViewRef?.loadUrl(loginUrl) },
                         shape = ShapeCache.smoothPill,
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -248,22 +234,21 @@ fun LoginScreen(
                     factory = { ctx ->
                         createConfiguredLoginWebView(
                             context = ctx,
-                            loginHtml = loginBridgeHtml,
+                            loginUrl = loginUrl,
                             onPageStarted = { isPageLoading = true },
                             onPageFinished = { url ->
                                 isPageLoading = false
                                 val cookies = CookieManager.getInstance()
-                                    .getCookie("https://www.ithome.com/")
+                                    .getCookie(ITHOME_CALLBACK_TARGET)
                                     .orEmpty()
-                                // 检测到 ithome 域已经出现用户会话标志或回到 ithome 主页时，静默探测校验
-                                if (cookies.contains("user=", ignoreCase = true) ||
-                                    (url?.startsWith("https://www.ithome.com/") == true &&
-                                        !url.contains("user-login-bridge"))
-                                ) {
-                                    triggerSessionSync(silentIfUnauthenticated = true)
+                                val reachedCallbackHost = url != null &&
+                                    (url.startsWith(ITHOME_CALLBACK_TARGET) ||
+                                        url.startsWith("https://www.ithome.com"))
+                                if (reachedCallbackHost || cookies.contains("user=", ignoreCase = true)) {
+                                    triggerSessionSync(silentIfUnauthenticated = !reachedCallbackHost)
                                 }
                             },
-                            onJsLoginSuccess = {
+                            onReachedCallback = {
                                 triggerSessionSync(silentIfUnauthenticated = false)
                             }
                         ).also { webViewRef = it }
@@ -278,12 +263,18 @@ fun LoginScreen(
 @SuppressLint("SetJavaScriptEnabled")
 private fun createConfiguredLoginWebView(
     context: android.content.Context,
-    loginHtml: String,
+    loginUrl: String,
     onPageStarted: () -> Unit,
     onPageFinished: (String?) -> Unit,
-    onJsLoginSuccess: () -> Unit
+    onReachedCallback: () -> Unit
 ): WebView {
     return WebView(context).apply {
+        layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        setBackgroundColor(android.graphics.Color.TRANSPARENT)
+
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
         cookieManager.setAcceptThirdPartyCookies(this, true)
@@ -293,19 +284,10 @@ private fun createConfiguredLoginWebView(
             domStorageEnabled = true
             useWideViewPort = true
             loadWithOverviewMode = true
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             javaScriptCanOpenWindowsAutomatically = true
             setSupportMultipleWindows(false)
         }
-
-        addJavascriptInterface(
-            object {
-                @JavascriptInterface
-                fun onLoginSuccess() {
-                    post { onJsLoginSuccess() }
-                }
-            },
-            "ITYouAuth"
-        )
 
         webChromeClient = WebChromeClient()
         webViewClient = object : WebViewClient() {
@@ -323,77 +305,29 @@ private fun createConfiguredLoginWebView(
                 view: WebView?,
                 request: WebResourceRequest?
             ): Boolean {
-                val uri = request?.url ?: return false
-                val scheme = uri.scheme?.lowercase().orEmpty()
-                // 仅允许 http/https 在 WebView 内跳转，防止外部 App Scheme 导致报错页面
-                return scheme != "http" && scheme != "https"
+                val url = request?.url?.toString().orEmpty()
+                val scheme = request?.url?.scheme?.lowercase().orEmpty()
+                if (scheme != "http" && scheme != "https") {
+                    return true
+                }
+                // 登录成功后 official script 会将顶层跳转到 forsid 指定的 m.ithome.com / www.ithome.com
+                if (url.startsWith(ITHOME_CALLBACK_TARGET) || url.startsWith("https://www.ithome.com")) {
+                    post { onReachedCallback() }
+                    return true
+                }
+                return false
             }
         }
 
-        loadDataWithBaseURL(
-            "https://www.ithome.com/user-login-bridge",
-            loginHtml,
-            "text/html",
-            "UTF-8",
-            null
-        )
+        loadUrl(loginUrl)
     }
 }
 
-private fun buildEmbedLoginHtml(
-    isDark: Boolean,
-    primaryHex: String,
-    bgHex: String
-): String {
-    return """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-            <link href="https://dat.ruanmei.com/lib/login.min.css" type="text/css" rel="stylesheet" />
-            <style>
-                html, body {
-                    margin: 0;
-                    padding: 0;
-                    width: 100%;
-                    height: 100%;
-                    background-color: $bgHex;
-                    overflow-x: hidden;
-                }
-                #login-root {
-                    width: 100%;
-                    height: 100%;
-                    min-height: 520px;
-                }
-            </style>
-        </head>
-        <body>
-            <div id="login-root"></div>
-            <script src="https://dat.ruanmei.com/lib/login.min.js"></script>
-            <script>
-                (function() {
-                    if (typeof window.loginHelper === 'undefined') {
-                        window.location.href = 'https://my.ruanmei.com/user-login/index.htm';
-                        return;
-                    }
-                    window.loginHelper.requestLogin({
-                        mode: 'embed',
-                        embedIn: document.getElementById('login-root'),
-                        darkMode: $isDark,
-                        themeColor: '$primaryHex',
-                        onLogin: function() {
-                            // 给 hidden iframe 种下 .ithome.com cookie 留出 600ms 缓冲
-                            setTimeout(function() {
-                                if (window.ITYouAuth && window.ITYouAuth.onLoginSuccess) {
-                                    window.ITYouAuth.onLoginSuccess();
-                                }
-                            }, 600);
-                        }
-                    });
-                })();
-            </script>
-        </body>
-        </html>
-    """.trimIndent()
+private const val ITHOME_CALLBACK_TARGET = "https://m.ithome.com/"
+
+private fun buildDirectLoginUrl(isDark: Boolean, primaryHex: String): String {
+    val reversedTarget = ITHOME_CALLBACK_TARGET.reversed()
+    val encodedForsid = URLEncoder.encode(reversedTarget, StandardCharsets.UTF_8.toString())
+    val darkParam = if (isDark) "&dark=1" else ""
+    return "https://my.ruanmei.com/user-login/index.htm?forsid=$encodedForsid&tc=c$primaryHex$darkParam"
 }

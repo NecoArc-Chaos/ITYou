@@ -119,7 +119,7 @@ class SecureCookieStore(
     }
 
     fun saveAll(cookies: List<StoredCookie>) {
-        if (prefs == null) return
+        val targetPrefs = prefs ?: return
         if (cookies.isEmpty()) {
             clear()
             return
@@ -127,7 +127,7 @@ class SecureCookieStore(
         runCatching {
             val json = encodeCookies(cookies)
             val encrypted = cipher.encrypt(json)
-            prefs.edit().putString(KEY_COOKIES_CIPHER, encrypted).apply()
+            targetPrefs.edit().putString(KEY_COOKIES_CIPHER, encrypted).apply()
         }
     }
 
